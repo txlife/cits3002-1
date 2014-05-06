@@ -1,0 +1,27 @@
+Server Header Formatting Protocol
+=================================
+This document describes the protocol used in header messages to make requests
+with the server application. A header message based on the below formatting
+should be sent upon each required action (e.g. upload, retrieve file, etc.).
+
+General
+-------
+
++--------------------------------------------------------+
+| Action Descriptor		| File Size     | File Name      |
+| 				8 bits	|      32 bits  |     59 bytes   |
++--------------------------------------------------------+
+- total size = 1 + 4 + 59 = 64 bytes
+
+# Action Descriptor #
+Describes the type of header. Should be set with the predefined flags such as:
+
+	+ SEND_FILE
+	+ RECV_FILE
+
+# File Size #
+32 bit integer describing how many bytes in total the file size is
+
+# File Name #
+String representing the name of the file to download or upload. 32 bytes maximum.
+

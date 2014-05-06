@@ -1,0 +1,4 @@
+#!/bin/bash
+# -Wunreachable-code
+cflags="-std=c99 -Wextra -Wall -Wshadow -O -pedantic"
+clang $cflags $1.c trustcloud.c -c && clang $1.o trustcloud.o -o $1;
