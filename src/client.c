@@ -85,8 +85,7 @@ int main(int argc, char *argv[])
                 h.file_size = get_file_size(fp);
                 h.file_name = file_name;
                 send_header(socket_fd, h);
-                return 0;
-                recv(socket_fd, NULL, 1, 0);
+                // recv(socket_fd, NULL, 1, 0);
                 send_file(socket_fd, fp);
             } else {
                 perror("fopen");

@@ -12,6 +12,8 @@ int main()
 //  memset(buffer,0,sizeof(buffer));
     int yes =1;
 
+
+
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) {
         fprintf(stderr, "Socket failure!!\n");
         exit(EXIT_FAILURE);
@@ -65,12 +67,10 @@ int main()
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
-
         printf("[Header]:\n");
         printf("\t%d\n", h.action);
         printf("\t%d\n", h.file_size);
         printf("\t%s\n", h.file_name);
-
         // if client requests to uplaod file
         if (h.action == ADD_FILE) {
             char *serv_dir = "server_files";
@@ -79,7 +79,7 @@ int main()
             char target[1024];
             sprintf(target, "%s/%s", serv_dir, h.file_name);
             printf("[SERVER] Adding file %s\n", target);
-            receive_file(client_fd, target, h.file_size);
+            receive_file(client_fd, target);
         }
 
         while(1) {

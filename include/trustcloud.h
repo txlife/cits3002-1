@@ -42,7 +42,8 @@ typedef struct header {
  *
  */
 /** Receive file, providing file name to store file as **/ 
-void receive_file	(int, char *);
+void receive_file	(int, char *, int);
+int recv_all(int , char *, int *);
 /** Send file that has been opened succesfully to server/client **/
 void send_file 	 	(int, FILE *);
 /** Send short message (generally string) **/ 

@@ -1,38 +1,4 @@
-#include "trustcloud.h"
-
-int main()
-{
-    struct sockaddr_in server;
-    struct sockaddr_in dest;
-    int status,socket_fd, client_fd,num;
-    socklen_t size;
-
-    char buffer[1024];
-    char *buff;
-//  memset(buffer,0,sizeof(buffer));
-    int yes =1;
-
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) {
-        fprintf(stderr, "Socket failure!!\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
-    }
-    memset(&server, 0, sizeof(server));
-    memset(&dest,0,sizeof(dest));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(PORT);
-    server.sin_addr.s_addr = INADDR_ANY; 
-    if ((bind(socket_fd, (struct sockaddr *)&server, sizeof(struct sockaddr )))== -1)    { //sizeof(struct sockaddr) 
-        fprintf(stderr, "Binding Failure\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if ((listen(socket_fd, BACKLOG))== -1){
-        fprintf(stderr, "Listening Failure\n");
+ening Failure\n");
         exit(EXIT_FAILURE);
     }
 
@@ -65,12 +31,10 @@ int main()
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
-
         printf("[Header]:\n");
         printf("\t%d\n", h.action);
         printf("\t%d\n", h.file_size);
         printf("\t%s\n", h.file_name);
-
         // if client requests to uplaod file
         if (h.action == ADD_FILE) {
             char *serv_dir = "server_files";
@@ -79,7 +43,7 @@ int main()
             char target[1024];
             sprintf(target, "%s/%s", serv_dir, h.file_name);
             printf("[SERVER] Adding file %s\n", target);
-            receive_file(client_fd, target, h.file_size);
+            receive_file(client_fd, target);
         }
 
         while(1) {
