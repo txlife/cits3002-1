@@ -1,4 +1,5 @@
 #include "trustcloud.h"
+#define h_addr h_addr_list[0] /* for backward compatibility */
 
 int main(int argc, char *argv[])
 {
@@ -17,6 +18,7 @@ int main(int argc, char *argv[])
 
     char *file_name = NULL;
     int send_flag = 0;
+    int list_flag = 0;
     int index;
     int c;
     opterr = 0;
@@ -30,7 +32,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv, "h:a:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:l")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
@@ -39,12 +41,13 @@ int main(int argc, char *argv[])
                 file_name = optarg;
                 send_flag = 1;
                 break;
+	    case 'l':
+            	list_flag = 1;
+		break;
             default:
                 abort();
         }
     }
-
-    // if (send_flag) printf("Sending file '%s'\n", file_name);
 
     if ((he = gethostbyname(hostname))==NULL) {
         fprintf(stderr, "Cannot get host name\n");
@@ -69,6 +72,8 @@ int main(int argc, char *argv[])
 	while(1) {
         // printf("Client: Enter Data for Server:\n");
         // fgets(buffer,MAXSIZE-1,stdin);
+
+	/**Sending File **/
         if (send_flag) {
             // buffer = "send";
             // sprintf(buffer, "send");
@@ -93,6 +98,29 @@ int main(int argc, char *argv[])
             }
             break;
         }
+	
+	/** List Files **/
+	else if(list_flag){
+            sprintf(buffer, "list");
+            send_message(socket_fd, buffer);
+            recv(socket_fd, NULL, 1, 0);
+        	while(1){
+        		memset(buffer, 0, sizeof(buffer));;
+        		num = recv(socket_fd, buffer, sizeof(buffer),0);
+				if ( num <= 0 )
+				{
+						printf("Either Connection Closed or Error\n");
+						//Break from the While
+						break;
+				}
+
+				buff[num] = '\0';
+				printf("%s\n",buffer);
+        	}
+        	break;
+        }
+
+	break;
         if ((send(socket_fd,buffer, strlen(buffer),0))== -1) {
                 fprintf(stderr, "Failure Sending Message\n");
                 close(socket_fd);

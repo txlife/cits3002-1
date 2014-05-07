@@ -202,3 +202,38 @@ int unpack_header_string(char *head_string, header *h) {
     // h.file_name = head_string[2];
     return 0;
 }
+
+/**server list current dir files
+ * based on : http://stackoverflow.com/questions/11291154/save-file-listing-into-array-or-something-else-c
+**/
+size_t file_list(const char *path, char ***ls) {
+    size_t count = 0;
+    DIR *dp = NULL;
+    struct dirent *ep = NULL;
+
+    dp = opendir(path);
+    if(NULL == dp) {
+        fprintf(stderr, "no such directory: '%s'", path);
+        return 0;
+    }
+
+    *ls = NULL;
+    ep = readdir(dp);
+    while(ep != NULL){
+        count++;
+        ep = readdir(dp);
+    }
+
+    rewinddir(dp);
+    *ls = calloc(count, sizeof(char *));
+
+    count = 0;
+    ep = readdir(dp);
+    while(ep != NULL){
+        (*ls)[count++] = strdup(ep->d_name);
+        ep = readdir(dp);
+    }
+
+    closedir(dp);
+    return count;
+}
