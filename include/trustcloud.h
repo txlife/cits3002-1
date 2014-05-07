@@ -13,6 +13,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <math.h>
+#include <dirent.h>
 
 /** Operation Header Action Descriptor Flag Definitions **/
 #define ADD_FILE 0
@@ -48,6 +49,8 @@ int recv_all(int , char *, int *);
 void send_file 	 	(int, FILE *);
 /** Send short message (generally string) **/ 
 void send_message 	(int, char *);
+/** list files**/
+size_t list_file	(const char *,char ***);
 /* 
  * From Beej's Guide to Network Programming, Hall B.J., 2009
  * 		Keeps sending until all data in buffer is sent. 
