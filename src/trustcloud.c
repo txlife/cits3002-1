@@ -186,11 +186,8 @@ int unpack_header_string(char *head_string, header *h) {
                 h->file_size = atoi(buff);
                 break;
             case 2:
-                // h->file_name = buff;
-                // printf("%s\n", buff);
                 h->file_name = malloc(strlen(buff) * sizeof(h->file_name));
                 strcpy(h->file_name, buff);
-                // printf("%s\n", h->file_name);
                 break;
             default:
                 break;

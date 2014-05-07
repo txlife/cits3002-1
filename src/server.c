@@ -74,7 +74,6 @@ int main()
         // if client requests to uplaod file
         if (h.action == ADD_FILE) {
             char *serv_dir = "server_files";
-            // char *file_name = "written.txt";
             // TODO get file_name from header
             char target[1024];
             sprintf(target, "%s/%s", serv_dir, h.file_name);
