@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     char buff[1024];
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: client -h hostname [-s send_file_name]\n");
+        fprintf(stderr, "Usage: client -h hostname [-a add_file_name]\n");
         exit(EXIT_FAILURE);
     }
 
@@ -21,12 +21,21 @@ int main(int argc, char *argv[])
     int c;
     opterr = 0;
 
-    while ((c = getopt(argc, argv, "h:s:")) != -1) {
+    /**
+     *  args left to implement:
+     *      -h hostname:port    provide the remote address hosting the trustcloud server
+     *      -c number   provide the required circumference (length) of a ring of trust
+     *      -f filename fetch an existing file from the trustcloud server (simply sent to stdout)
+     *      -l  list all stored files and how they are protected
+     *      -u certificate  upload a certificate to the trustcloud server
+     *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
+     */
+    while ((c = getopt(argc, argv, "h:a:")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
                 break;
-            case 's':
+            case 'a':
                 file_name = optarg;
                 send_flag = 1;
                 break;
@@ -35,7 +44,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (send_flag) printf("Sending file '%s'\n", file_name);
+    // if (send_flag) printf("Sending file '%s'\n", file_name);
 
     if ((he = gethostbyname(hostname))==NULL) {
         fprintf(stderr, "Cannot get host name\n");
@@ -62,11 +71,22 @@ int main(int argc, char *argv[])
         // fgets(buffer,MAXSIZE-1,stdin);
         if (send_flag) {
             // buffer = "send";
-            sprintf(buffer, "send");
-            send_message(socket_fd, buffer);
-            recv(socket_fd, NULL, 1, 0);
+            // sprintf(buffer, "send");
+            // send_message(socket_fd, buffer);
+            char client_dir[] = "client_files";
+            // printf("%s\n", strcat(client_dir, file_name));
+            char target[1024];
+            sprintf(target, "%s/%s", client_dir, file_name);
+            printf("%s\n", target);
             FILE *fp;
-            if ((fp = fopen(file_name, "r"))){
+            if ((fp = fopen(target, "r"))){
+                header h;
+                h.action = ADD_FILE;
+                h.file_size = get_file_size(fp);
+                h.file_name = file_name;
+                send_header(socket_fd, h);
+                return 0;
+                recv(socket_fd, NULL, 1, 0);
                 send_file(socket_fd, fp);
             } else {
                 perror("fopen");

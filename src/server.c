@@ -2,7 +2,6 @@
 
 int main()
 {
-    printf("%d\n", SEND_FILE);
     struct sockaddr_in server;
     struct sockaddr_in dest;
     int status,socket_fd, client_fd,num;
@@ -50,27 +49,37 @@ int main()
         printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
         send_message(client_fd, "What would you like to do?\0");
-        char header[1024];
+
+        char header_buf[1024];
         // read header - then do action based on header parsing
-        if ((num = recv(client_fd, header, 1024,0))== -1) {
+        if ((num = recv(client_fd, header_buf, 1024,0))== -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
         }
         else if (num == 0) {
-                printf("Connection closed\n");
+                printf("No header received. Connection closed\n");
                 //So I can now wait for another client
                 continue;
         } 
-        
-        // printf("%s\n", buffer);
 
-        // if client requests to uplaod file
-        if (strcmp(header, "send") == 0) {
-            char *file_name = "written.txt";
-            // TODO get file_name from header
-            receive_file(client_fd, file_name);
+        header h;
+        if (unpack_header_string(header_buf, &h) == -1) {
+            fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
+            exit(EXIT_FAILURE);
         }
-  
+        printf("%d\n", h.action);
+        printf("%d\n", h.file_size);
+        printf("%s", h.file_name);
+        // if client requests to uplaod file
+        if (h.action == ADD_FILE) {
+            char *serv_dir = "server_files";
+            // char *file_name = "written.txt";
+            // TODO get file_name from header
+            char *target[1024];
+            sprintf(target, "%s/%s", serv_dir, h.file_name);
+            printf("[SERVER] Adding file %s\n", target);
+            receive_file(client_fd, strcat(serv_dir, h.file_name));
+        }
 
         while(1) {
             break;

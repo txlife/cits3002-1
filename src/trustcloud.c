@@ -6,7 +6,7 @@
 void receive_file(int sock_fd, char *file_name) {
     int num;
     char buffer[1024];
-    printf("SERVER: receiving file\n");
+    // printf("SERVER: receiving file\n");
     FILE *fp;
     if (!(fp = fopen(file_name, "w"))) {
         perror("fopen");
@@ -33,14 +33,19 @@ void receive_file(int sock_fd, char *file_name) {
     fclose(fp);
 }
 
+int get_file_size(FILE *fp) {
+    fseek(fp, 0L, SEEK_END);
+    int file_size = ftell(fp);
+    fseek(fp, 0L, SEEK_SET); // back to start
+    return file_size;
+}
+
 /** 
  * Read file and send data to server
  */ 
 void send_file(int sock_fd, FILE *fp) {
     // get file size
-    fseek(fp, 0L, SEEK_END);
-    int file_size = ftell(fp);
-    fseek(fp, 0L, SEEK_SET); // back to start
+    int file_size = get_file_size(fp);
     int num_chunks = floor(file_size / 1024);
 
     // int sock_fd = open_socket(host);
@@ -74,15 +79,6 @@ void send_file(int sock_fd, FILE *fp) {
     printf("File successfully transferred\n");
 }
 
-/** Send short message (generally string) **/ 
-void send_message(int sock_fd, char *buffer) {
-    if ((send(sock_fd, buffer, strlen(buffer),0))== -1) {
-        fprintf(stderr, "Failure Sending Message\n");
-        close(sock_fd);
-        exit(EXIT_FAILURE);
-    }
-}
-
 /** Beej's Guide to Network Programming, Hall B.J., 2009 **/
 int sendall(int s, char *buf, int *len) {
     int total = 0;        // how many bytes we've sent
@@ -96,4 +92,67 @@ int sendall(int s, char *buf, int *len) {
     }
     *len = total; // return number actually sent here
     return n==-1?-1:0; // return -1 on failure, 0 on success
+}
+
+/** Send short message (generally string) **/ 
+void send_message(int sock_fd, char *buffer) {
+    if ((send(sock_fd, buffer, strlen(buffer),0))== -1) {
+        fprintf(stderr, "Failure Sending Message\n");
+        close(sock_fd);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void send_header(int sock_fd, header h) {
+    char head_buff[64];
+
+    if (h.action != ADD_FILE && h.action != FETCH_FILE) {
+        fprintf(stderr, "Incorrect header action for sending header\n");
+        exit(EXIT_FAILURE);
+    }
+    char *head_buff_loc = head_buff;
+    sprintf(head_buff_loc, "%d\n", (short)h.action);
+    while (*head_buff_loc != '\n') head_buff_loc++;
+    sprintf(++head_buff_loc, "%d\n", (int)h.file_size);
+    while (*head_buff_loc != '\n') head_buff_loc++;
+    sprintf(++head_buff_loc, "%s\n", h.file_name);
+
+    printf("%s", head_buff);
+    send_message(sock_fd, head_buff);
+}   
+
+int unpack_header_string(char *head_string, header *h) {
+    // header h;
+    int i;
+
+    char *loc = head_string;
+
+    for (i = 0; i < NUM_HEAD_FIELDS; i++) {
+        char buff[59];
+        char *buff_loc = buff;
+        while (*loc != '\n') {
+            *buff_loc = *loc;
+            printf("%c\n", *buff_loc);
+            buff_loc++; loc++;
+        }
+        loc++;
+        *buff_loc = '\0';
+        switch(i) {
+            case 0:
+                h->action = (short)atoi(buff);
+                break;
+            case 1:
+                h->file_size = atoi(buff);
+                break;
+            case 2:
+                h->file_name = buff;
+            default:
+                break;
+        }
+    }
+    // *h.action = (short)
+    // h.action = (short)atoi(head_string[0]);
+    // h.file_size = atoi(head_string[1]);
+    // h.file_name = head_string[2];
+    return 0;
 }

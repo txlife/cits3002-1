@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <errno.h>
 #include <string.h>
 #include <netdb.h>
@@ -14,8 +15,8 @@
 #include <math.h>
 
 /** Operation Header Action Descriptor Flag Definitions **/
-#define SEND_FILE 0
-#define RECV_FILE 1
+#define ADD_FILE 0
+#define FETCH_FILE 1
 
 #define PORT 3490
 #define MAXSIZE 1024
@@ -25,14 +26,16 @@
  *	Header to send to server requesting operation. Each communication to the
  * 		server should be initiated with a header request. 
  */ 
-struct header {
+typedef struct header {
 	/* Describes operation */ 
-	const short action;
+	short action;
 	/* Size of file */ 
-	const int file_size;
+	int file_size;
 	/* Name of file - limited to 59 characters*/	
-	const char file_name[59];
-};
+	char *file_name;
+} header;
+
+#define NUM_HEAD_FIELDS 3
 
 /**
  * Function Declarations 
