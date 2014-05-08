@@ -1,5 +1,6 @@
 #include "trustcloud.h"
 #define h_addr h_addr_list[0] /* for backward compatibility */
+static int verify_callback(int ok, X509_STORE_CTX *ctx);
 
 int main(int argc, char *argv[])
 {
@@ -11,6 +12,9 @@ int main(int argc, char *argv[])
     char buff[1024];
     SSL_CTX *ctx;
     SSL *ssl;
+    X509            *server_cert;
+    EVP_PKEY        *pkey;
+    int     verify_client = OFF;
 
     /* check arguments */
     if (argc < 2) {
@@ -51,7 +55,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    /* SSL libraries init */
+    /* SSL libraries init 
+     * http://mooon.blog.51cto.com/1246491/909932
+     */
     SSL_library_init();
     OpenSSL_add_all_algorithms();
     SSL_load_error_strings();
@@ -61,6 +67,35 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+
+    if(verify_client == ON){
+        /* Load the client certificate into the SSL_CTX structure */
+        if (SSL_CTX_use_certificate_file(ctx, RSA_CLIENT_CERT, SSL_FILETYPE_PEM) <= 0) {
+            ERR_print_errors_fp(stderr);
+            exit(EXIT_FAILURE);
+        }
+        /* Load the private-key corresponding to the client certificate */
+        if (SSL_CTX_use_PrivateKey_file(ctx, RSA_CLIENT_KEY, SSL_FILETYPE_PEM) <= 0) {
+            ERR_print_errors_fp(stderr);
+            exit(EXIT_FAILURE);
+        }
+        /* Check if the client certificate and private-key matches */
+        if (!SSL_CTX_check_private_key(ctx)) {
+            fprintf(stderr,"Private key does not match the certificate public key\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    /* Load the RSA CA certificate into the SSL_CTX structure */
+    /* This will allow this client to verify the server's     */
+    /* certificate.                                           */
+    if (!SSL_CTX_load_verify_locations(ctx, RSA_CLIENT_CA_CERT, NULL)) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    } 
+    /* Set flag in context to require peer (server) certificate */
+    /* verification */
+    SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+    SSL_CTX_set_verify_depth(ctx,1);
     if ((he = gethostbyname(hostname))==NULL) {
         fprintf(stderr, "Cannot get host name\n");
         exit(EXIT_FAILURE);
@@ -84,13 +119,13 @@ int main(int argc, char *argv[])
         perror("connect");
         exit(EXIT_FAILURE);
     }
-
     /* Create a new SSL based on ctx */
     ssl = SSL_new(ctx);
     SSL_set_fd(ssl,socket_fd);
     /* Build up SSL connection */
     if(SSL_connect(ssl) == -1){
         ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
     }
     else{
         printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
@@ -150,11 +185,10 @@ int main(int argc, char *argv[])
         	break;
         }
     }
-    finish:
-        /* Close connections */
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        SSL_CTX_free(ctx);
-        close(socket_fd);
+    /* Close connections */
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
+    close(socket_fd);
 
 }//End of main

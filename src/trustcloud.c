@@ -237,7 +237,9 @@ size_t file_list(const char *path, char ***ls) {
     return count;
 }
 
-/* Client Show Certificates */
+/* Client Show Certificates
+ * http://mooon.blog.51cto.com/1246491/909932
+ */
 void ShowCerts(SSL * ssl){
     X509 *cert;
     char *line;

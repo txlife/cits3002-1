@@ -1,20 +1,23 @@
 #include "trustcloud.h"
 
-int main(int argc, char **argv)
+int main()
 {
     struct sockaddr_in server;
     struct sockaddr_in dest;
     int socket_fd, client_fd,num;
     socklen_t size;
     SSL_CTX *ctx;
+    X509            *client_cert = NULL;
+    int     verify_client = OFF;
+    char    *str;
 
-    if (argc < 2) {
-        fprintf(stderr, "Usage: server cacert.pem privkey.pem\n");
-        return 0;
-    }
+    //if (argc < 2) {
+    //    fprintf(stderr, "Usage: server cacert.pem privkey.pem\n");
+    //    return 0;
+    //}
 
     /*******  START SSL ***************/
-
+    /* http://mooon.blog.51cto.com/1246491/909932 */
     /* SSL Libraries Init */
     SSL_library_init();
     /* add all SSL algorithms */
@@ -30,26 +33,34 @@ int main(int argc, char **argv)
         ERR_print_errors_fp(stdout);
         exit(EXIT_FAILURE);
     }
-    /* load client's certificate, this certificate include public key
-     * sent to client
-     */
-    if(SSL_CTX_use_certificate_file(ctx,argv[1],SSL_FILETYPE_PEM) <= 0){
+    /* Load the server certificate into the SSL_CTX structure */
+    if(SSL_CTX_use_certificate_file(ctx,RSA_SERVER_CERT,SSL_FILETYPE_PEM) <= 0){
         ERR_print_errors_fp(stdout);
         exit(EXIT_FAILURE);
     } 
-    /* load client's private key */
-    if(SSL_CTX_use_PrivateKey_file(ctx,argv[2],SSL_FILETYPE_PEM) <= 0){
+    /* Load the private-key corresponding to the server certificate */
+    if(SSL_CTX_use_PrivateKey_file(ctx,RSA_SERVER_KEY,SSL_FILETYPE_PEM) <= 0){
         ERR_print_errors_fp(stdout);
         exit(EXIT_FAILURE);
     }
-    /* check if client's private key is correct */
+    /* Check if the server certificate and private-key matches */
     if(!SSL_CTX_check_private_key(ctx)){
         ERR_print_errors_fp(stdout);
         exit(EXIT_FAILURE);
     }
-
-
-
+    if(verify_client == ON){
+        /* Load the RSA CA certificate into the SSL_CTX structure */
+        if (!SSL_CTX_load_verify_locations(ctx, RSA_SERVER_CA_CERT, NULL)) {
+           ERR_print_errors_fp(stderr);
+                exit(1);
+        }
+ 
+        /* Set to require peer (client) certificate verification */
+        SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+ 
+        /* Set the verification depth to 1 */
+        SSL_CTX_set_verify_depth(ctx,1); 
+    }
     /*********** END SSL ****************/
 
 
@@ -87,7 +98,6 @@ int main(int argc, char **argv)
         fprintf(stderr, "Listening Failure\n");
         exit(EXIT_FAILURE);
     }
-
     while(1) {
 
         SSL *ssl;
@@ -112,6 +122,30 @@ int main(int argc, char **argv)
             perror("accept");
             close(client_fd);
             exit(EXIT_FAILURE);
+        }
+        if (verify_client == ON){
+            /* Get the client's certificate (optional) */
+            client_cert = SSL_get_peer_certificate(ssl);
+            if (client_cert != NULL) {
+                printf ("Client certificate:\n");     
+                str = X509_NAME_oneline(X509_get_subject_name(client_cert), 0, 0);
+                if ((str)==NULL){
+                    exit(EXIT_FAILURE);
+                }
+                printf ("\t subject: %s\n", str);
+                free (str);
+                str = X509_NAME_oneline(X509_get_issuer_name(client_cert), 0, 0);
+                if ((str)==NULL){
+                    exit(EXIT_FAILURE);
+                }
+                printf ("\t issuer: %s\n", str);
+                free (str);
+                X509_free(client_cert);
+            } 
+            else{
+                printf("The SSL client does not have certificate.\n");
+                exit(EXIT_FAILURE);
+            }
         }
 
         /******* START PROCESSING DATA *************/
@@ -160,7 +194,7 @@ int main(int argc, char **argv)
         		count = file_list("./", &files);
         		printf("There are %zu files in the directory,transmitting file list.\n", count);
         		for (i = 0; i < count; i++) {
-        			send_message(client_fd,files[i]);
+        			SSL_write(ssl,files[i],strlen(files[i]));
         			sleep(1);
         		}
         		printf("File list transmitting completed.\n");
