@@ -143,7 +143,7 @@ void send_message(int sock_fd, char *buffer) {
 void send_header(int sock_fd, header h) {
     char head_buff[64];
 
-    if (h.action != ADD_FILE && h.action != FETCH_FILE) {
+    if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
