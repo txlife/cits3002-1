@@ -8,12 +8,13 @@ int main(int argc, char *argv[])
     int socket_fd,num;
     char buffer[1024];
     char *hostname = NULL;
-
     char buff[1024];
+    SSL_CTX *ctx;
+    SSL *ssl;
 
+    /* check arguments */
     if (argc < 2) {
-        fprintf(stderr, "Usage: client -h hostname [-a add_file_name]\n");
-        exit(EXIT_FAILURE);
+        return help();
     }
 
     char *file_name = NULL;
@@ -50,30 +51,57 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* SSL libraries init */
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    ctx=SSL_CTX_new(SSLv23_client_method());
+    if(ctx == NULL){
+        ERR_print_errors_fp(stdout);
+        exit(EXIT_FAILURE);
+    }
+
     if ((he = gethostbyname(hostname))==NULL) {
         fprintf(stderr, "Cannot get host name\n");
         exit(EXIT_FAILURE);
     }
 
+    /* Create a socket for tcp communication */
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) {
         fprintf(stderr, "Socket Failure!!\n");
         exit(EXIT_FAILURE);
     }
 
+    /* Initialize Server address and port */
     memset(&server_info, 0, sizeof(server_info));
     server_info.sin_family = AF_INET;
     server_info.sin_port = htons(PORT);
     server_info.sin_addr = *((struct in_addr *)he->h_addr);
+
+    /* Connect Server */
     if (connect(socket_fd, (struct sockaddr *)&server_info, sizeof(struct sockaddr))<0) {
         //fprintf(stderr, "Connection Failure\n");
         perror("connect");
         exit(EXIT_FAILURE);
     }
 
+    /* Create a new SSL based on ctx */
+    ssl = SSL_new(ctx);
+    SSL_set_fd(ssl,socket_fd);
+    /* Build up SSL connection */
+    if(SSL_connect(ssl) == -1){
+        ERR_print_errors_fp(stderr);
+    }
+    else{
+        printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
+        ShowCerts(ssl);
+    }
+
+    /* Start Data Processing */
 	while(1) {
         // printf("Client: Enter Data for Server:\n");
         // fgets(buffer,MAXSIZE-1,stdin);
-	/**Sending File **/
+	    /**Sending File **/
         if (send_flag) {
             // buffer = "send";
             // sprintf(buffer, "send");
@@ -99,7 +127,7 @@ int main(int argc, char *argv[])
             break;
         }
 	
-	/** List Files **/
+	    /** List Files **/
 	    else if(list_flag){
             header h;
             h.action = LIST_FILE;
@@ -121,27 +149,12 @@ int main(int argc, char *argv[])
         	}
         	break;
         }
-
-	break;
-        if ((send(socket_fd,buffer, strlen(buffer),0))== -1) {
-                fprintf(stderr, "Failure Sending Message\n");
-                close(socket_fd);
-                exit(1);
-        }
-        else {
-            printf("Client:Message being sent: %s\n",buffer);
-            num = recv(socket_fd, buffer, sizeof(buffer),0);
-            if ( num <= 0 )
-            {
-                    printf("Either Connection Closed or Error\n");
-                    //Break from the While
-                    break;
-            }
-
-            buff[num] = '\0';
-            printf("Client:Message Received From Server -  %s\n",buffer);
-        }
     }
-    close(socket_fd);
+    finish:
+        /* Close connections */
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        SSL_CTX_free(ctx);
+        close(socket_fd);
 
 }//End of main

@@ -236,3 +236,29 @@ size_t file_list(const char *path, char ***ls) {
     closedir(dp);
     return count;
 }
+
+/* Client Show Certificates */
+void ShowCerts(SSL * ssl){
+    X509 *cert;
+    char *line;
+    cert = SSL_get_peer_certificate(ssl);
+    if (cert != NULL) {
+        printf("Certificate Information:\n");
+        line = X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
+        printf("Certificate: %s\n", line);
+        free(line);
+        line = X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
+        printf("Signed by: %s\n", line);
+        free(line);
+        X509_free(cert);
+    } 
+    else{
+        printf("No Certificate Information found！\n");
+    }
+}
+
+/* Display Command Line Options */
+int help(){
+    fprintf(stderr, "Usage: client -h hostname [-a add_file_name] [-l]\n");
+    return 0;
+}

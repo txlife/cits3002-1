@@ -14,6 +14,8 @@
 #include <arpa/inet.h>
 #include <math.h>
 #include <dirent.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 /** Operation Header Action Descriptor Flag Definitions **/
 #define ADD_FILE 0
@@ -22,7 +24,7 @@
 
 #define PORT 3490
 #define MAXSIZE 1024
-#define BACKLOG 10
+#define BACKLOG 1024
 
 /**
  *	Header to send to server requesting operation. Each communication to the
@@ -58,6 +60,10 @@ void send_header	(int,header);
 int get_file_size	(FILE *);
 /** unpack header **/
 int unpack_header_string	(char *, header *);
+/** show certificate **/
+void ShowCerts	(SSL *);
+/** command line options **/
+int help	();
 /* 
  * From Beej's Guide to Network Programming, Hall B.J., 2009
  * 		Keeps sending until all data in buffer is sent. 
