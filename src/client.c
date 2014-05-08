@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     char *file_name = NULL;
     int send_flag = 0;
     int list_flag = 0;
-    int index;
+    //int index;
     int c;
     opterr = 0;
 
@@ -41,9 +41,10 @@ int main(int argc, char *argv[])
                 file_name = optarg;
                 send_flag = 1;
                 break;
-	    case 'l':
+	        case 'l':
             	list_flag = 1;
-		break;
+                file_name = "no filename";
+		        break;
             default:
                 abort();
         }
@@ -72,7 +73,6 @@ int main(int argc, char *argv[])
 	while(1) {
         // printf("Client: Enter Data for Server:\n");
         // fgets(buffer,MAXSIZE-1,stdin);
-
 	/**Sending File **/
         if (send_flag) {
             // buffer = "send";
@@ -100,9 +100,11 @@ int main(int argc, char *argv[])
         }
 	
 	/** List Files **/
-	else if(list_flag){
+	    else if(list_flag){
             header h;
             h.action = LIST_FILE;
+            h.file_size = 0;
+            h.file_name = file_name;
             send_header(socket_fd, h);
         	while(1){
         		memset(buffer, 0, sizeof(buffer));
