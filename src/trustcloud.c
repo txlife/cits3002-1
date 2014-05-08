@@ -33,7 +33,7 @@ void receive_file(int sock_fd, char *file_name, int file_size) {
         wrote = fwrite(rec_buff, 1, size_rcvd, fp);
         received += size_rcvd;
         // temp_num += ;
-        if (wrote != size_rcvd) {
+        if ((int)wrote != size_rcvd) {
             perror("fwrite");
             exit(EXIT_FAILURE);
         }
@@ -73,14 +73,14 @@ int get_file_size(FILE *fp) {
 void send_file(int sock_fd, FILE *fp) {
     // get file size
     int file_size = get_file_size(fp);
-    int num_chunks = floor(file_size / 1024);
+    //int num_chunks = floor(file_size / 1024);
 
     // int sock_fd = open_socket(host);
 
     while (1) {
         // char buffer[1024];
         char *buffer = malloc(1024*sizeof(char *));
-        size_t size_read, size_sent;
+        size_t size_read;
         // size_t
         if ((size_read = fread(buffer, 1, 1024, fp)) == 0) {
             perror("fread()\n");
@@ -104,7 +104,7 @@ void send_file(int sock_fd, FILE *fp) {
                 exit(EXIT_FAILURE);
             } else {
                 // int num = recv(sock_fd, )
-                printf("%.2f%% complete, %lu bytes sent\n",
+                printf("%.2f%% complete, %i bytes sent\n",
                          100.0*(float)ftell(fp)/(float)file_size, len);
             }
         }
@@ -142,8 +142,7 @@ void send_message(int sock_fd, char *buffer) {
 
 void send_header(int sock_fd, header h) {
     char head_buff[64];
-
-    if (h.action != ADD_FILE && h.action != FETCH_FILE) {
+    if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
@@ -157,7 +156,7 @@ void send_header(int sock_fd, header h) {
         file_name[strlen(file_name) - 1] = '\n';
     sprintf(++head_buff_loc, "%s\n", file_name);
 
-    printf("%s\n", head_buff);
+    printf("Client sending header buff: %s\n", head_buff);
     send_message(sock_fd, head_buff);
 }   
 
@@ -198,4 +197,39 @@ int unpack_header_string(char *head_string, header *h) {
     // h.file_size = atoi(head_string[1]);
     // h.file_name = head_string[2];
     return 0;
+}
+
+/**server list current dir files
+ * based on : http://stackoverflow.com/questions/11291154/save-file-listing-into-array-or-something-else-c
+**/
+size_t file_list(const char *path, char ***ls) {
+    size_t count = 0;
+    DIR *dp = NULL;
+    struct dirent *ep = NULL;
+
+    dp = opendir(path);
+    if(NULL == dp) {
+        fprintf(stderr, "no such directory: '%s'", path);
+        return 0;
+    }
+
+    *ls = NULL;
+    ep = readdir(dp);
+    while(ep != NULL){
+        count++;
+        ep = readdir(dp);
+    }
+
+    rewinddir(dp);
+    *ls = calloc(count, sizeof(char *));
+
+    count = 0;
+    ep = readdir(dp);
+    while(ep != NULL){
+        (*ls)[count++] = strdup(ep->d_name);
+        ep = readdir(dp);
+    }
+
+    closedir(dp);
+    return count;
 }

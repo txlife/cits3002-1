@@ -4,11 +4,11 @@ int main()
 {
     struct sockaddr_in server;
     struct sockaddr_in dest;
-    int status,socket_fd, client_fd,num;
+    int socket_fd, client_fd,num;
     socklen_t size;
 
-    char buffer[1024];
-    char *buff;
+    //char buffer[1024];
+    //char *buff;
 //  memset(buffer,0,sizeof(buffer));
     int yes =1;
 
@@ -46,8 +46,6 @@ int main()
         }
         printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
-        send_message(client_fd, "What would you like to do?\0");
-
         char header_buf[1024];
         // read header - then do action based on header parsing
         if ((num = recv(client_fd, header_buf, 1024,0))== -1) {
@@ -71,32 +69,36 @@ int main()
         printf("\t%d\n", h.file_size);
         printf("\t%s\n", h.file_name);
 
-        // if client requests to uplaod file
-        if (h.action == ADD_FILE) {
-            char *serv_dir = "server_files";
-            // TODO get file_name from header
-            char target[1024];
-            sprintf(target, "%s/%s", serv_dir, h.file_name);
-            printf("[SERVER] Adding file %s\n", target);
-            receive_file(client_fd, target, h.file_size);
-        }
-
         while(1) {
-            break;
-                if ((num = recv(client_fd, buffer, 1024,0))== -1) {
-                        perror("recv");
-                        exit(EXIT_FAILURE);
-                }
-                else if (num == 0) {
-                        printf("Connection closed\n");
-                        //So I can now wait for another client
-                        break;
-                }
-                buffer[num] = '\0';
-                printf("Server:Msg Received %s\n", buffer);
-                send_message(client_fd, buffer);
-
-                printf("Server:Msg being sent: %s\nNumber of bytes sent: %lu\n", buffer, strlen(buffer));
+		// if client requests to uplaod file
+        	if (h.action == ADD_FILE) {
+            		char *serv_dir = "server_files";
+            		// char *file_name = "written.txt";
+            		// TODO get file_name from header
+            		char target[1024];
+            		sprintf(target, "%s/%s", serv_dir, h.file_name);
+            		printf("[SERVER] Adding file %s\n", target);
+            		receive_file(client_fd, target, h.file_size);
+                    close(client_fd);
+                    break;
+        	}
+		
+		// if client requests to list files
+		    else if (h.action == LIST_FILE) {
+        		char **files;
+        		size_t count;
+        		unsigned int i;
+        		count = file_list("./", &files);
+        		printf("There are %zu files in the directory,transmitting file list.\n", count);
+            		for (i = 0; i < count; i++) {
+            			send_message(client_fd,files[i]);
+            			sleep(1);
+            		}
+            		printf("File list transmitting completed.\n");
+            		close(client_fd);
+            		printf("Client connection closed.\n");
+                    break;
+		    }
 
         } //End of Inner While...
         //Close Connection Socket
