@@ -79,10 +79,12 @@ int main()
             		sprintf(target, "%s/%s", serv_dir, h.file_name);
             		printf("[SERVER] Adding file %s\n", target);
             		receive_file(client_fd, target, h.file_size);
+                    close(client_fd);
+                    break;
         	}
 		
 		// if client requests to list files
-		else if (strcmp(header, "list") == 0) {
+		    else if (h.action == LIST_FILE) {
         		char **files;
         		size_t count;
         		unsigned int i;
@@ -95,7 +97,7 @@ int main()
             		printf("File list transmitting completed.\n");
             		close(client_fd);
             		printf("Client connection closed.\n");
-		}
+		    }
 
         } //End of Inner While...
         //Close Connection Socket

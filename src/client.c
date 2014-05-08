@@ -101,11 +101,11 @@ int main(int argc, char *argv[])
 	
 	/** List Files **/
 	else if(list_flag){
-            sprintf(buffer, "list");
-            send_message(socket_fd, buffer);
-            recv(socket_fd, NULL, 1, 0);
+            header h;
+            h.action = LIST_FILE;
+            send_header(socket_fd, h);
         	while(1){
-        		memset(buffer, 0, sizeof(buffer));;
+        		memset(buffer, 0, sizeof(buffer));
         		num = recv(socket_fd, buffer, sizeof(buffer),0);
 				if ( num <= 0 )
 				{
