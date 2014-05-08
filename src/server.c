@@ -4,11 +4,11 @@ int main()
 {
     struct sockaddr_in server;
     struct sockaddr_in dest;
-    int status,socket_fd, client_fd,num;
+    int socket_fd, client_fd,num;
     socklen_t size;
 
-    char buffer[1024];
-    char *buff;
+    //char buffer[1024];
+    //char *buff;
 //  memset(buffer,0,sizeof(buffer));
     int yes =1;
 
@@ -97,6 +97,7 @@ int main()
             		printf("File list transmitting completed.\n");
             		close(client_fd);
             		printf("Client connection closed.\n");
+                    break;
 		    }
 
         } //End of Inner While...

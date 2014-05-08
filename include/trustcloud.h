@@ -51,7 +51,13 @@ void send_file 	 	(int, FILE *);
 /** Send short message (generally string) **/ 
 void send_message 	(int, char *);
 /** list files**/
-size_t list_file	(const char *,char ***);
+size_t file_list	(const char *,char ***);
+/** send header **/
+void send_header	(int,header);
+/** get file size **/
+int get_file_size	(FILE *);
+/** unpack header **/
+int unpack_header_string	(char *, header *);
 /* 
  * From Beej's Guide to Network Programming, Hall B.J., 2009
  * 		Keeps sending until all data in buffer is sent. 
