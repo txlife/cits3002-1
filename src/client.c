@@ -1,5 +1,6 @@
 #include "trustcloud.h"
 #define h_addr h_addr_list[0] /* for backward compatibility */
+static int verify_callback(int ok, X509_STORE_CTX *ctx);
 
 int main(int argc, char *argv[])
 {
@@ -8,12 +9,16 @@ int main(int argc, char *argv[])
     int socket_fd,num;
     char buffer[1024];
     char *hostname = NULL;
-
     char buff[1024];
+    SSL_CTX *ctx;
+    SSL *ssl;
+    X509            *server_cert;
+    EVP_PKEY        *pkey;
+    int     verify_client = OFF;
 
+    /* check arguments */
     if (argc < 2) {
-        fprintf(stderr, "Usage: client -h hostname [-a add_file_name]\n");
-        exit(EXIT_FAILURE);
+        return help();
     }
 
     char *file_name = NULL;
@@ -55,30 +60,88 @@ int main(int argc, char *argv[])
         }
     }
 
+    /* SSL libraries init 
+     * http://mooon.blog.51cto.com/1246491/909932
+     */
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    ctx=SSL_CTX_new(SSLv23_client_method());
+    if(ctx == NULL){
+        ERR_print_errors_fp(stdout);
+        exit(EXIT_FAILURE);
+    }
+
+
+    if(verify_client == ON){
+        /* Load the client certificate into the SSL_CTX structure */
+        if (SSL_CTX_use_certificate_file(ctx, RSA_CLIENT_CERT, SSL_FILETYPE_PEM) <= 0) {
+            ERR_print_errors_fp(stderr);
+            exit(EXIT_FAILURE);
+        }
+        /* Load the private-key corresponding to the client certificate */
+        if (SSL_CTX_use_PrivateKey_file(ctx, RSA_CLIENT_KEY, SSL_FILETYPE_PEM) <= 0) {
+            ERR_print_errors_fp(stderr);
+            exit(EXIT_FAILURE);
+        }
+        /* Check if the client certificate and private-key matches */
+        if (!SSL_CTX_check_private_key(ctx)) {
+            fprintf(stderr,"Private key does not match the certificate public key\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    /* Load the RSA CA certificate into the SSL_CTX structure */
+    /* This will allow this client to verify the server's     */
+    /* certificate.                                           */
+    if (!SSL_CTX_load_verify_locations(ctx, RSA_CLIENT_CA_CERT, NULL)) {
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    } 
+    /* Set flag in context to require peer (server) certificate */
+    /* verification */
+    SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+    SSL_CTX_set_verify_depth(ctx,1);
     if ((he = gethostbyname(hostname))==NULL) {
         fprintf(stderr, "Cannot get host name\n");
         exit(EXIT_FAILURE);
     }
 
+    /* Create a socket for tcp communication */
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) {
         fprintf(stderr, "Socket Failure!!\n");
         exit(EXIT_FAILURE);
     }
 
+    /* Initialize Server address and port */
     memset(&server_info, 0, sizeof(server_info));
     server_info.sin_family = AF_INET;
     server_info.sin_port = htons(PORT);
     server_info.sin_addr = *((struct in_addr *)he->h_addr);
+
+    /* Connect Server */
     if (connect(socket_fd, (struct sockaddr *)&server_info, sizeof(struct sockaddr))<0) {
         //fprintf(stderr, "Connection Failure\n");
         perror("connect");
         exit(EXIT_FAILURE);
     }
+    /* Create a new SSL based on ctx */
+    ssl = SSL_new(ctx);
+    SSL_set_fd(ssl,socket_fd);
+    /* Build up SSL connection */
+    if(SSL_connect(ssl) == -1){
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+    else{
+        printf("Connected with %s encryption\n", SSL_get_cipher(ssl));
+        ShowCerts(ssl);
+    }
 
+    /* Start Data Processing */
 	while(1) {
         // printf("Client: Enter Data for Server:\n");
         // fgets(buffer,MAXSIZE-1,stdin);
-	/**Sending File **/
+	    /**Sending File **/
         if (send_flag) {
             char client_dir[] = "client_files";
             // printf("%s\n", strcat(client_dir, file_name));
@@ -128,7 +191,7 @@ int main(int argc, char *argv[])
             break;
         }
 	
-	/** List Files **/
+	    /** List Files **/
 	    else if(list_flag){
             header h;
             h.action = LIST_FILE;
@@ -155,6 +218,10 @@ int main(int argc, char *argv[])
             exit(EXIT_FAILURE);
         }
     }
+    /* Close connections */
+    SSL_shutdown(ssl);
+    SSL_free(ssl);
+    SSL_CTX_free(ctx);
     close(socket_fd);
 
 }//End of main

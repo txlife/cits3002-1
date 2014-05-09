@@ -3,17 +3,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <errno.h>
-#include <string.h>
 #include <netdb.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <math.h>
+
 #include <dirent.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/crypto.h>
+
 
 /** Operation Header Action Descriptor Flag Definitions **/
 #define ADD_FILE 0
@@ -22,7 +28,22 @@
 
 #define PORT 3490
 #define MAXSIZE 1024
-#define BACKLOG 10
+#define BACKLOG 1024
+
+#define RSA_CLIENT_CERT       "client.crt"
+#define RSA_CLIENT_KEY  "client.key"
+ 
+#define RSA_CLIENT_CA_CERT      "client_ca.crt"
+#define RSA_CLIENT_CA_PATH      "./client_ca.crt"
+
+#define RSA_SERVER_CERT     "server.crt"
+#define RSA_SERVER_KEY          "server.key"
+ 
+#define RSA_SERVER_CA_CERT "server_ca.crt"
+#define RSA_SERVER_CA_PATH   "./server_ca.crt"
+
+#define ON   1
+#define OFF        0
 
 #define BLOCK_SIZE 1024
 #define HEADER_SIZE 1024
@@ -74,7 +95,10 @@ int get_file_size	(FILE *);
 
 /** unpack header **/
 int unpack_header_string	(char *, header *);
-
+/** show certificate **/
+void ShowCerts	(SSL *);
+/** command line options **/
+int help	();
 /* 
  * From Beej's Guide to Network Programming, Hall B.J., 2009
  * 		Keeps sending until all data in buffer is sent. 
