@@ -327,3 +327,149 @@ RSA* getRsaFp( const char* rsaprivKeyPath )
   return rsa;
 }
 
+/* store signature to file */
+int writeSig(unsigned char *sig, char *sig_name){
+    FILE *fp; 
+    fp = fopen(sig_name,"w"); /* write to file or create a file if it does not exist.*/ 
+    if ( fp == 0 ) {
+        fprintf( stderr, "Couldn't open signature file: '%s'. %s\n",sig_name, strerror(errno) );
+        exit(1);
+    }
+    fprintf(fp,"%s",sig); /*writes*/ 
+    fclose(fp); /*done!*/ 
+    return 0;
+}
+
+/* Get signature length, used part of the formal code */
+int sigLength(char *rsaprivKeyPath, const char *clearText){
+    EVP_PKEY *evpKey;
+    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+    RSA *rsa;
+    /* get private key file */
+    rsa = getRsaFp( rsaprivKeyPath );
+    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    /* create EVP_CTX */
+    EVP_MD_CTX *evp_ctx;
+    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+        fprintf( stderr, "Couldn't create EVP context.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+     
+    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
+        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+     
+    if ( EVP_SignUpdate( evp_ctx, clearText, strlen( clearText ) ) == 0 ) {
+        fprintf( stderr, "Couldn't calculate hash of message.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    unsigned char *sig = NULL;
+    unsigned int sigLen = 0;
+    //memset(sig, 0, MAXSIZE+1024);
+    sig = malloc(EVP_PKEY_size(evpKey));
+    /* check sig */
+    if ( EVP_SignFinal( evp_ctx, sig, &sigLen, evpKey ) == 0 ) {
+        fprintf( stderr, "Couldn't calculate signature.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    EVP_MD_CTX_destroy( evp_ctx );
+    RSA_free( rsa );
+    EVP_PKEY_free( evpKey );
+    ERR_free_strings();
+    return sigLen;
+}
+
+/* Verify file with certain certificate 
+ * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
+ */
+int verifySig(char *rsaprivKeyPath, const char *clearText, unsigned char *sig){
+    printf("-----start verify-----\n");
+    EVP_PKEY *evpKey;
+    RSA *rsa;
+    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    /* get private key file */
+    rsa = getRsaFp( rsaprivKeyPath );
+    printf("%s\n",rsaprivKeyPath);
+    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    /*create evp_ctx */
+    EVP_MD_CTX *evp_ctx;
+    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+        fprintf( stderr, "Couldn't create EVP context.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+
+    if ( EVP_VerifyInit(evp_ctx, EVP_sha1()) == 0 ) {
+        fprintf( stderr, "Couldn't exec EVP_VerifyInit.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+
+    if(!EVP_VerifyUpdate( evp_ctx, clearText, strlen(clearText))){
+
+               printf("EVP_VerifyUpdate error. \n");
+
+               exit(1);
+
+    }
+    //printf("ClearText:%s\n",clearText);
+    int vsigLen = sigLength(rsaprivKeyPath,clearText);
+    int vr;
+    //memset(sig, 0, MAXSIZE+1024);
+    //printf("strlen(sig):%lu\n",strlen((const char *)sig));
+    //printf("vsiglen:%u\n",vsigLen);
+    vr = EVP_VerifyFinal( evp_ctx, sig, vsigLen, evpKey);
+    if( vr == -1){
+
+               printf("verify by public key error. \n");
+
+               exit(1);
+
+    }
+    else if(vr == 1){
+        printf("verified\n");
+    }
+    else{
+        printf("failed\n");
+    }
+    return 0;
+}
+

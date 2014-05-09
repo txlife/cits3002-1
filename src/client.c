@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 
     /* Start Data Processing */
 	while(1) {
-        // printf("Client: Enter Data for Server:\n");
+        //printf("Client: Enter Data for Server:\n");
         // fgets(buffer,MAXSIZE-1,stdin);
 	    /**Sending File **/
         if (send_flag) {
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
                 h.action = ADD_FILE;
                 h.file_size = get_file_size(fp);
                 h.file_name = file_name;
-                h.certificate = NULL;
+                h.certificate = " ";
                 send_header(socket_fd, h);
                 // recv(socket_fd, NULL, 1, 0);
                 send_file(socket_fd, fp);
@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
             h.action = LIST_FILE;
             h.file_size = 0;
             h.file_name = " ";
-            h.certificate = NULL;
+            h.certificate = " ";
             send_header(socket_fd, h);
         	while(1){
         		memset(buffer, 0, sizeof(buffer));
@@ -197,6 +197,7 @@ int main(int argc, char *argv[])
 
         /* Vouch File */
         else if(vouch_flag){
+            printf("1");
             header h;
             h.action = VOUCH_FILE;
             h.file_size = 0;

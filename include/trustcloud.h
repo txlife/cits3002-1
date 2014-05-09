@@ -95,6 +95,8 @@ int help	();
 int pass_cb		( char *, int, int, void *);
 /** get cert file, vouch file **/
 RSA* getRsaFp	( const char*);
+/* store signature to file */
+int writeSig	(unsigned char *, char *);
 /* 
  * From Beej's Guide to Network Programming, Hall B.J., 2009
  * 		Keeps sending until all data in buffer is sent. 
