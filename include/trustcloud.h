@@ -48,6 +48,8 @@
 #define BLOCK_SIZE 1024
 #define HEADER_SIZE 1024
 
+#define VERIFY_CLIENT  OFF
+
 /**
  *	Header to send to server requesting operation. Each communication to the
  * 		server should be initiated with a header request. 
