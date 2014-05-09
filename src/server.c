@@ -7,9 +7,6 @@ int main()
     int socket_fd, client_fd,num;
     socklen_t size;
 
-    //char buffer[1024];
-    //char *buff;
-//  memset(buffer,0,sizeof(buffer));
     int yes =1;
 
     if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) {
@@ -46,58 +43,62 @@ int main()
         }
         printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
-        char header_buf[1024];
+        char header_buf[BLOCK_SIZE];
         // read header - then do action based on header parsing
-        if ((num = recv(client_fd, header_buf, 1024,0))== -1) {
+        int len = HEADER_SIZE;
+        if ((num = recv_all(client_fd, (unsigned char *)header_buf, &len))== -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
         }
-        else if (num == 0) {
-                printf("No header received. Connection closed\n");
-                //So I can now wait for another client
-                continue;
-        } 
-
+        // unpack header string
         header h;
         if (unpack_header_string(header_buf, &h) == -1) {
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
 
-        printf("[Header]:\n");
-        printf("\t%d\n", h.action);
-        printf("\t%d\n", h.file_size);
-        printf("\t%s\n", h.file_name);
-
         while(1) {
-		// if client requests to uplaod file
+		// if client requests to upload file
         	if (h.action == ADD_FILE) {
-            		char *serv_dir = "server_files";
-            		// char *file_name = "written.txt";
-            		// TODO get file_name from header
-            		char target[1024];
-            		sprintf(target, "%s/%s", serv_dir, h.file_name);
-            		printf("[SERVER] Adding file %s\n", target);
-            		receive_file(client_fd, target, h.file_size);
-                    close(client_fd);
-                    break;
-        	}
-		
-		// if client requests to list files
+        		char *serv_dir = "server_files";
+        		char target[BLOCK_SIZE];
+        		sprintf(target, "%s/%s", serv_dir, h.file_name);
+        		printf("[SERVER] Adding file %s\n", target);
+        		receive_file(client_fd, target, h.file_size);
+                close(client_fd);
+                break;
+        	} else if (h.action == FETCH_FILE) {
+                char *serv_dir = "server_files";
+                char target[BLOCK_SIZE];
+                sprintf(target, "%s/%s", serv_dir, h.file_name);
+                printf("[SERVER] Fetching file %s\n", target);
+                FILE *fp;
+                if (!(fp = fopen(target, "r"))) {
+                    perror("fopen");
+                    exit(EXIT_FAILURE);
+                }
+                header h_send;
+                h_send.action = ADD_FILE;
+                h_send.file_size = get_file_size(fp);
+                h_send.file_name = h.file_name;
+                send_header(client_fd, h_send);
+                send_file(client_fd, fp);
+                break;
+            } // if client requests to list files
 		    else if (h.action == LIST_FILE) {
         		char **files;
         		size_t count;
         		unsigned int i;
         		count = file_list("./", &files);
         		printf("There are %zu files in the directory,transmitting file list.\n", count);
-            		for (i = 0; i < count; i++) {
-            			send_message(client_fd,files[i]);
-            			sleep(1);
-            		}
-            		printf("File list transmitting completed.\n");
-            		close(client_fd);
-            		printf("Client connection closed.\n");
-                    break;
+        		for (i = 0; i < count; i++) {
+        			send_message(client_fd,files[i]);
+        			sleep(1);
+        		}
+        		printf("File list transmitting completed.\n");
+        		close(client_fd);
+        		printf("Client connection closed.\n");
+                break;
 		    }
 
         } //End of Inner While...

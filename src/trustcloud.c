@@ -6,7 +6,7 @@
 void receive_file(int sock_fd, char *file_name, int file_size) {
     int num;
     int received = 0;
-    char rec_buff[1024];
+    unsigned char rec_buff[BLOCK_SIZE];
     // printf("SERVER: receiving file\n");
     FILE *fp;
     if (!(fp = fopen(file_name, "w"))) {
@@ -16,15 +16,12 @@ void receive_file(int sock_fd, char *file_name, int file_size) {
 
     size_t wrote;
     while (received < file_size) {
-        // int temp_num = 0;
-        // while (temp_num < 1024) {
-            // if ((num = recv(sock_fd, rec_buff, 1024,0))== -1) {
-        int size_rcvd = 1024;
+        int size_rcvd = (int)fmin(BLOCK_SIZE, file_size - received);
         if ((num = recv_all(sock_fd, rec_buff, &size_rcvd))== -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
         } 
-        if (num < 0) {
+        if (size_rcvd <= 0) {
                 printf("Connection closed\n");
                 //So I can now wait for another client
                 break;
@@ -32,27 +29,22 @@ void receive_file(int sock_fd, char *file_name, int file_size) {
         printf("%d bytes received\n", size_rcvd);
         wrote = fwrite(rec_buff, 1, size_rcvd, fp);
         received += size_rcvd;
-        // temp_num += ;
         if ((int)wrote != size_rcvd) {
             perror("fwrite");
             exit(EXIT_FAILURE);
         }
-            // if (received >= file_size) break;
-        // }
-
     }
     printf("Wrote %d bytes\n", received);
     fclose(fp);
 }
 
-int recv_all(int sock, char *buf, int *len) { 
-    int total = 0;        // how many bytes we've sent
-    int bytesleft = *len; // how many we have left to send
+int recv_all(int sock, unsigned char *buf, int *len) { 
+    int total = 0;        // how many bytes we've received
+    int bytesleft = *len; // how many we have left to receive
     int n;
     while(total < *len) {
         n = recv(sock, buf+total, bytesleft, 0);
-        // printf("%d\n", n);
-        if (n == -1) { break; }
+        if (n == -1 || n == 0) { break; }
         total += n;
         bytesleft -= n;
     }
@@ -73,42 +65,32 @@ int get_file_size(FILE *fp) {
 void send_file(int sock_fd, FILE *fp) {
     // get file size
     int file_size = get_file_size(fp);
-    //int num_chunks = floor(file_size / 1024);
-
-    // int sock_fd = open_socket(host);
 
     while (1) {
-        // char buffer[1024];
-        char *buffer = malloc(1024*sizeof(char *));
+        char unsigned buffer[BLOCK_SIZE];
+        // char *buffer = malloc(1024*sizeof(char *));
         size_t size_read;
-        // size_t
-        if ((size_read = fread(buffer, 1, 1024, fp)) == 0) {
+        if ((size_read = fread(buffer, 1, BLOCK_SIZE, fp)) == 0) {
             perror("fread()\n");
             exit(EXIT_FAILURE);
         } else if (ferror(fp)) {
             perror("fread()\n");
             exit(EXIT_FAILURE);
         } else { // try and send the file chunk
-            // unsigned char send_buff[1024];
-            // strcpy(send_buff, buffer);
-            // size_read = (size_t)1024;
-            int len = 1024;
+            int len = (int)size_read;
             if ((sendall(sock_fd, buffer, &len)) == -1) {
                 fprintf(stderr, "Failure Sending File\n");
                 close(sock_fd);
                 exit(EXIT_FAILURE);
             }
-            // size_sent = size_read;
             if (len <= 0) {
                 perror("send");
                 exit(EXIT_FAILURE);
             } else {
-                // int num = recv(sock_fd, )
                 printf("%.2f%% complete, %i bytes sent\n",
                          100.0*(float)ftell(fp)/(float)file_size, len);
             }
         }
-        free(buffer);
         if (ftell(fp) >= file_size) break;
     }
 
@@ -117,7 +99,7 @@ void send_file(int sock_fd, FILE *fp) {
 }
 
 /** Beej's Guide to Network Programming, Hall B.J., 2009 **/
-int sendall(int s, char *buf, int *len) {
+int sendall(int s, unsigned char *buf, int *len) {
     int total = 0;        // how many bytes we've sent
     int bytesleft = *len; // how many we have left to send
     int n;
@@ -133,15 +115,22 @@ int sendall(int s, char *buf, int *len) {
 
 /** Send short message (generally string) **/ 
 void send_message(int sock_fd, char *buffer) {
-    if ((send(sock_fd, buffer, strlen(buffer),0))== -1) {
+    // if ((send(sock_fd, buffer, strlen(buffer),0))== -1) {
+    int len = strlen(buffer);
+    if ((sendall(sock_fd, (unsigned char *)buffer, &len))== -1) {
         fprintf(stderr, "Failure Sending Message\n");
+        close(sock_fd);
+        exit(EXIT_FAILURE);
+    } 
+    if (len < (int)strlen(buffer)) {
+        fprintf(stderr, "Didn't send full message\n");
         close(sock_fd);
         exit(EXIT_FAILURE);
     }
 }
 
 void send_header(int sock_fd, header h) {
-    char head_buff[64];
+    char head_buff[HEADER_SIZE];
     if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
@@ -156,12 +145,23 @@ void send_header(int sock_fd, header h) {
         file_name[strlen(file_name) - 1] = '\n';
     sprintf(++head_buff_loc, "%s\n", file_name);
 
-    printf("Client sending header buff: %s\n", head_buff);
-    send_message(sock_fd, head_buff);
+    head_buff_loc += 1 + strlen(file_name);
+
+    while (head_buff_loc < head_buff + HEADER_SIZE - 1) {
+        *head_buff_loc = '\0';
+        head_buff_loc++;
+    }
+
+    printf("Sending header buff:\n %s\n", head_buff);
+    int len = HEADER_SIZE;
+    sendall(sock_fd, (unsigned char *)head_buff, &len);
+    if (len < HEADER_SIZE) {
+        fprintf(stderr, "Error sending header\n");
+        exit(EXIT_FAILURE);
+    }
 }   
 
 int unpack_header_string(char *head_string, header *h) {
-    // header h;
     int i;
 
     char *loc = head_string;
@@ -175,7 +175,6 @@ int unpack_header_string(char *head_string, header *h) {
             buff_loc++; loc++;
         }
         loc++;
-        // buff_loc++;
         *buff_loc = '\0';
         switch(i) {
             case 0:
@@ -192,10 +191,7 @@ int unpack_header_string(char *head_string, header *h) {
                 break;
         }
     }
-    // *h.action = (short)
-    // h.action = (short)atoi(head_string[0]);
-    // h.file_size = atoi(head_string[1]);
-    // h.file_name = head_string[2];
+
     return 0;
 }
 

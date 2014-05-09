@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
     char *file_name = NULL;
     int send_flag = 0;
     int list_flag = 0;
-    //int index;
+    int fetch_flag = 0;
     int c;
     opterr = 0;
 
@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:l")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lf:")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
@@ -41,12 +41,17 @@ int main(int argc, char *argv[])
                 file_name = optarg;
                 send_flag = 1;
                 break;
+            case 'f':
+                file_name = optarg;
+                fetch_flag = 1;
+                break;
 	        case 'l':
             	list_flag = 1;
                 file_name = "no filename";
 		        break;
             default:
-                abort();
+                fprintf(stderr, "Flag not recognized.\n");
+                exit(EXIT_FAILURE);
         }
     }
 
@@ -75,9 +80,6 @@ int main(int argc, char *argv[])
         // fgets(buffer,MAXSIZE-1,stdin);
 	/**Sending File **/
         if (send_flag) {
-            // buffer = "send";
-            // sprintf(buffer, "send");
-            // send_message(socket_fd, buffer);
             char client_dir[] = "client_files";
             // printf("%s\n", strcat(client_dir, file_name));
             char target[1024];
@@ -96,6 +98,33 @@ int main(int argc, char *argv[])
                 perror("fopen");
                 exit(EXIT_FAILURE);
             }
+            break;
+        } else if (fetch_flag) {
+            header h_send;
+            h_send.action = FETCH_FILE;
+            h_send.file_name = file_name;
+            h_send.file_size = -1;
+            header h_recv;
+            send_header(socket_fd, h_send);
+            char head_buf[HEADER_SIZE];
+            int len = HEADER_SIZE;
+            // get header from server with file size
+            if (recv_all(socket_fd, (unsigned char *)head_buf, &len) == -1) {
+                perror("recv");
+                exit(EXIT_FAILURE);
+            }
+            if (len < HEADER_SIZE) {
+                fprintf(stderr, "[CLIENT] Did not receive full header\n");
+                exit(EXIT_FAILURE);
+            }     
+            if (unpack_header_string(head_buf, &h_recv) == -1) {
+                fprintf(stderr, "[CLIENT] Could not unpack header information from client\n");
+                exit(EXIT_FAILURE);
+            }
+            char *client_dir = "client_files";
+            char target[1024];
+            sprintf(target,"%s/%s", client_dir, h_recv.file_name);            
+            receive_file(socket_fd, target, h_recv.file_size);
             break;
         }
 	
@@ -120,26 +149,10 @@ int main(int argc, char *argv[])
 				printf("%s\n",buffer);
         	}
         	break;
-        }
-
-	break;
-        if ((send(socket_fd,buffer, strlen(buffer),0))== -1) {
-                fprintf(stderr, "Failure Sending Message\n");
-                close(socket_fd);
-                exit(1);
-        }
-        else {
-            printf("Client:Message being sent: %s\n",buffer);
-            num = recv(socket_fd, buffer, sizeof(buffer),0);
-            if ( num <= 0 )
-            {
-                    printf("Either Connection Closed or Error\n");
-                    //Break from the While
-                    break;
-            }
-
-            buff[num] = '\0';
-            printf("Client:Message Received From Server -  %s\n",buffer);
+        } else {
+            printf("Unrecognised request\n");
+            close(socket_fd);
+            exit(EXIT_FAILURE);
         }
     }
     close(socket_fd);
