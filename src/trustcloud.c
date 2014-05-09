@@ -142,7 +142,7 @@ void send_message(int sock_fd, char *buffer) {
 
 void send_header(int sock_fd, header h) {
     char head_buff[64];
-    if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE) {
+    if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE && h.action != VOUCH_FILE) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
@@ -155,6 +155,11 @@ void send_header(int sock_fd, header h) {
     if (file_name[strlen(file_name) - 1] == '\0') 
         file_name[strlen(file_name) - 1] = '\n';
     sprintf(++head_buff_loc, "%s\n", file_name);
+    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+    char *certificate = h.certificate;
+    if (certificate[strlen(certificate) - 1] == '\0') 
+        certificate[strlen(certificate) - 1] = '\n';
+    sprintf(++head_buff_loc, "%s\n", h.certificate);
 
     printf("Client sending header buff: %s\n", head_buff);
     send_message(sock_fd, head_buff);
@@ -190,6 +195,10 @@ int unpack_header_string(char *head_string, header *h) {
                 h->file_name = malloc(strlen(buff) * sizeof(h->file_name));
                 strcpy(h->file_name, buff);
                 // printf("%s\n", h->file_name);
+                break;
+            case 3:
+                h->certificate = malloc(strlen(buff) * sizeof(h->certificate));
+                strcpy(h->certificate, buff);
                 break;
             default:
                 break;
@@ -264,3 +273,57 @@ int help(){
     fprintf(stderr, "Usage: client -h hostname [-a add_file_name] [-l]\n");
     return 0;
 }
+
+/* RSA password stuff, for vouch file */
+int pass_cb( char *buf, int size, int rwflag, void *u )
+{
+  if ( rwflag == 1 ) {
+    /* What does this really means? */
+  }
+  int len;
+  char tmp[1024];
+  printf( "Enter pass phrase for '%s': ", (char*)u );
+  scanf( "%s", tmp );
+  len = strlen( tmp );
+
+  if ( len <= 0 ) return 0;
+  if ( len > size ) len = size;
+
+  memset( buf, '\0', size );
+  memcpy( buf, tmp, len );
+  return len;
+}
+
+/* get RSA cert, for vouch file */
+RSA* getRsaFp( const char* rsaprivKeyPath )
+{
+  FILE* fp;
+  fp = fopen( rsaprivKeyPath, "r" );
+  if ( fp == 0 ) {
+    fprintf( stderr, "Couldn't open RSA priv key: '%s'. %s\n",
+             rsaprivKeyPath, strerror(errno) );
+    exit(1);
+  }
+ 
+  RSA *rsa = 0;
+  rsa = RSA_new();
+  if ( rsa == 0 ) {
+    fprintf( stderr, "Couldn't create new RSA priv key obj.\n" );
+    unsigned long sslErr = ERR_get_error();
+    if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+    fclose( fp );
+    exit( 1 );
+  }
+ 
+  rsa = PEM_read_RSAPrivateKey(fp, 0, pass_cb, (char*)rsaprivKeyPath);
+  if ( rsa == 0 ) {
+    fprintf( stderr, "Couldn't use RSA priv keyfile.\n" );
+    unsigned long sslErr = ERR_get_error();
+    if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+    fclose( fp );
+    exit( 1 );
+  }
+  fclose( fp );
+  return rsa;
+}
+

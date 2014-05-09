@@ -21,8 +21,10 @@ int main(int argc, char *argv[])
     }
 
     char *file_name = NULL;
+    char *certificate = NULL;
     int send_flag = 0;
     int list_flag = 0;
+    int vouch_flag = 0;
     //int index;
     int c;
     opterr = 0;
@@ -36,7 +38,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:l")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lv:")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
@@ -47,8 +49,13 @@ int main(int argc, char *argv[])
                 break;
 	        case 'l':
             	list_flag = 1;
-                file_name = "no filename";
 		        break;
+            case 'v':
+                vouch_flag = 1;
+                optind--;
+                file_name = argv[optind];
+                certificate = argv[++optind];
+                break;
             default:
                 abort();
         }
@@ -152,6 +159,7 @@ int main(int argc, char *argv[])
                 h.action = ADD_FILE;
                 h.file_size = get_file_size(fp);
                 h.file_name = file_name;
+                h.certificate = NULL;
                 send_header(socket_fd, h);
                 // recv(socket_fd, NULL, 1, 0);
                 send_file(socket_fd, fp);
@@ -167,7 +175,8 @@ int main(int argc, char *argv[])
             header h;
             h.action = LIST_FILE;
             h.file_size = 0;
-            h.file_name = file_name;
+            h.file_name = " ";
+            h.certificate = NULL;
             send_header(socket_fd, h);
         	while(1){
         		memset(buffer, 0, sizeof(buffer));
@@ -184,6 +193,31 @@ int main(int argc, char *argv[])
 				printf("%s\n",buffer);
         	}
         	break;
+        }
+
+        /* Vouch File */
+        else if(vouch_flag){
+            header h;
+            h.action = VOUCH_FILE;
+            h.file_size = 0;
+            h.file_name = file_name;
+            h.certificate = certificate;
+            send_header(socket_fd, h);
+            while(1){
+                memset(buffer, 0, sizeof(buffer));
+                //num = recv(socket_fd, buffer, sizeof(buffer),0);
+                num = SSL_read(ssl, buffer, sizeof(buffer));
+                if ( num <= 0 )
+                {
+                        printf("Either Connection Closed or Error\n");
+                        //Break from the While
+                        break;
+                }
+
+                buff[num] = '\0';
+                printf("%s\n",buffer);
+            }
+            break;
         }
     }
     /* Close connections */

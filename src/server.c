@@ -7,13 +7,6 @@ int main()
     int socket_fd, client_fd,num;
     socklen_t size;
     SSL_CTX *ctx;
-    X509            *client_cert = NULL;
-    char    *str;
-
-    //if (argc < 2) {
-    //    fprintf(stderr, "Usage: server cacert.pem privkey.pem\n");
-    //    return 0;
-    //}
 
     /*******  START SSL ***************/
     /* http://mooon.blog.51cto.com/1246491/909932 */
@@ -21,6 +14,10 @@ int main()
     SSL_library_init();
     /* add all SSL algorithms */
     OpenSSL_add_all_algorithms();
+    /* add all SSL ciphers */
+    OpenSSL_add_all_ciphers();
+    /* add all digests */
+    OpenSSL_add_all_digests();
     /* load all SSL errors */
     SSL_load_error_strings();
     /* Build SSL_CTX  -> SSL Content Text 
@@ -47,19 +44,7 @@ int main()
         ERR_print_errors_fp(stdout);
         exit(EXIT_FAILURE);
     }
-    if(VERIFY_CLIENT == ON){
-        /* Load the RSA CA certificate into the SSL_CTX structure */
-        if (!SSL_CTX_load_verify_locations(ctx, RSA_SERVER_CA_CERT, NULL)) {
-           ERR_print_errors_fp(stderr);
-                exit(1);
-        }
- 
-        /* Set to require peer (client) certificate verification */
-        SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
- 
-        /* Set the verification depth to 1 */
-        SSL_CTX_set_verify_depth(ctx,1); 
-    }
+
     /*********** END SSL ****************/
 
 
@@ -122,30 +107,7 @@ int main()
             close(client_fd);
             exit(EXIT_FAILURE);
         }
-        if (VERIFY_CLIENT == ON){
-            /* Get the client's certificate (optional) */
-            client_cert = SSL_get_peer_certificate(ssl);
-            if (client_cert != NULL) {
-                printf ("Client certificate:\n");     
-                str = X509_NAME_oneline(X509_get_subject_name(client_cert), 0, 0);
-                if ((str)==NULL){
-                    exit(EXIT_FAILURE);
-                }
-                printf ("\t subject: %s\n", str);
-                free (str);
-                str = X509_NAME_oneline(X509_get_issuer_name(client_cert), 0, 0);
-                if ((str)==NULL){
-                    exit(EXIT_FAILURE);
-                }
-                printf ("\t issuer: %s\n", str);
-                free (str);
-                X509_free(client_cert);
-            } 
-            else{
-                printf("The SSL client does not have certificate.\n");
-                exit(EXIT_FAILURE);
-            }
-        }
+
 
         /******* START PROCESSING DATA *************/
 
@@ -169,10 +131,11 @@ int main()
         printf("\t%d\n", h.action);
         printf("\t%d\n", h.file_size);
         printf("\t%s\n", h.file_name);
+        printf("\t%s\n", h.certificate);
         /* header part end */
 
         while(1) {
-		// if client requests to uplaod file
+		    // if client requests to uplaod file
         	if (h.action == ADD_FILE) {
             		char *serv_dir = "server_files";
             		// char *file_name = "written.txt";
@@ -185,7 +148,7 @@ int main()
                     break;
         	}
 		
-		// if client requests to list files
+		    // if client requests to list files
 		    else if (h.action == LIST_FILE) {
         		char **files;
         		size_t count;
@@ -201,6 +164,74 @@ int main()
         		printf("Client connection closed.\n");
                 break;
 		    }
+
+            /* if client requires to vouch a file
+             * https://gitorious.org/random_play/random_play/source/b9f19d4d9e8d4a9ba0ef55a6b0e2113d1c6a5587:openssl_sign.c#L54
+             */
+            else if (h.action == VOUCH_FILE){
+                    //char *rsaprivKeyPath = NULL;
+                    //*rsaprivKeyPath = h.certificate;
+                    const char *clearText = h.file_name;
+                    EVP_PKEY *evpKey;
+                    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+                        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+                        unsigned long sslErr = ERR_get_error();
+                        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                        exit(1);
+                    }
+                    RSA *rsa;
+                    /* get private key file */
+                    rsa = getRsaFp( h.certificate );
+                    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+                        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+                        unsigned long sslErr = ERR_get_error();
+                        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                        exit(1);
+                    }
+
+                    /* create EVP_CTX */
+                    EVP_MD_CTX *evp_ctx;
+                    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+                        fprintf( stderr, "Couldn't create EVP context.\n" );
+                        unsigned long sslErr = ERR_get_error();
+                        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                        exit(1);
+                    }
+                     
+                    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
+                        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
+                        unsigned long sslErr = ERR_get_error();
+                        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                        exit(1);
+                    }
+                     
+                    if ( EVP_SignUpdate( evp_ctx, clearText, strlen( clearText ) ) == 0 ) {
+                        fprintf( stderr, "Couldn't calculate hash of message.\n" );
+                        unsigned long sslErr = ERR_get_error();
+                        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                        exit(1);
+                    }
+
+                    unsigned char *sig = NULL;
+                    unsigned int sigLen = 0;
+                    //memset(sig, 0, MAXSIZE+1024);
+                    sig = malloc(EVP_PKEY_size(evpKey));
+                    /* check sig */
+                    if ( EVP_SignFinal( evp_ctx, sig, &sigLen, evpKey ) == 0 ) {
+                        fprintf( stderr, "Couldn't calculate signature.\n" );
+                        unsigned long sslErr = ERR_get_error();
+                        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                        exit(1);
+                    }
+                    printf( "Got signature: '%s'\n", sig );
+                    printf( "What to do next ? \n");
+                    EVP_MD_CTX_destroy( evp_ctx );
+                    RSA_free( rsa );
+                    EVP_PKEY_free( evpKey );
+                    ERR_free_strings();
+                    SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
+                    break;
+            }
 
         } //End of Inner While...
         /********** END DATA PROCESSING **************/
