@@ -15,7 +15,6 @@ int main()
     //    fprintf(stderr, "Usage: server cacert.pem privkey.pem\n");
     //    return 0;
     //}
-
     /*******  START SSL ***************/
     /* http://mooon.blog.51cto.com/1246491/909932 */
     /* SSL Libraries Init */
@@ -62,7 +61,6 @@ int main()
         SSL_CTX_set_verify_depth(ctx,1); 
     }
     /*********** END SSL ****************/
-
 
     //char buffer[1024];
     //char *buff;
