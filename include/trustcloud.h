@@ -45,6 +45,8 @@
 #define ON   1
 #define OFF        0
 
+#define VERIFY_CLIENT  OFF
+
 /**
  *	Header to send to server requesting operation. Each communication to the
  * 		server should be initiated with a header request. 

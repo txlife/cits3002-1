@@ -1,6 +1,6 @@
 #include "trustcloud.h"
 #define h_addr h_addr_list[0] /* for backward compatibility */
-static int verify_callback(int ok, X509_STORE_CTX *ctx);
+//static int verify_callback(int ok, X509_STORE_CTX *ctx);
 
 int main(int argc, char *argv[])
 {
@@ -12,9 +12,8 @@ int main(int argc, char *argv[])
     char buff[1024];
     SSL_CTX *ctx;
     SSL *ssl;
-    X509            *server_cert;
-    EVP_PKEY        *pkey;
-    int     verify_client = OFF;
+    //X509            *server_cert;
+    //EVP_PKEY        *pkey;
 
     /* check arguments */
     if (argc < 2) {
@@ -68,7 +67,7 @@ int main(int argc, char *argv[])
     }
 
 
-    if(verify_client == ON){
+    if(VERIFY_CLIENT == ON){
         /* Load the client certificate into the SSL_CTX structure */
         if (SSL_CTX_use_certificate_file(ctx, RSA_CLIENT_CERT, SSL_FILETYPE_PEM) <= 0) {
             ERR_print_errors_fp(stderr);
@@ -92,10 +91,7 @@ int main(int argc, char *argv[])
         ERR_print_errors_fp(stderr);
         exit(EXIT_FAILURE);
     } 
-    /* Set flag in context to require peer (server) certificate */
-    /* verification */
-    SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
-    SSL_CTX_set_verify_depth(ctx,1);
+
     if ((he = gethostbyname(hostname))==NULL) {
         fprintf(stderr, "Cannot get host name\n");
         exit(EXIT_FAILURE);
@@ -107,6 +103,10 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    /* Set flag in context to require peer (server) certificate */
+    /* verification */
+    //SSL_CTX_set_verify(ctx,SSL_VERIFY_PEER,NULL);
+    //SSL_CTX_set_verify_depth(ctx,1);
     /* Initialize Server address and port */
     memset(&server_info, 0, sizeof(server_info));
     server_info.sin_family = AF_INET;
@@ -171,7 +171,8 @@ int main(int argc, char *argv[])
             send_header(socket_fd, h);
         	while(1){
         		memset(buffer, 0, sizeof(buffer));
-        		num = recv(socket_fd, buffer, sizeof(buffer),0);
+        		//num = recv(socket_fd, buffer, sizeof(buffer),0);
+                num = SSL_read(ssl, buffer, sizeof(buffer));
 				if ( num <= 0 )
 				{
 						printf("Either Connection Closed or Error\n");

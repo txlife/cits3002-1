@@ -8,7 +8,6 @@ int main()
     socklen_t size;
     SSL_CTX *ctx;
     X509            *client_cert = NULL;
-    int     verify_client = OFF;
     char    *str;
 
     //if (argc < 2) {
@@ -48,7 +47,7 @@ int main()
         ERR_print_errors_fp(stdout);
         exit(EXIT_FAILURE);
     }
-    if(verify_client == ON){
+    if(VERIFY_CLIENT == ON){
         /* Load the RSA CA certificate into the SSL_CTX structure */
         if (!SSL_CTX_load_verify_locations(ctx, RSA_SERVER_CA_CERT, NULL)) {
            ERR_print_errors_fp(stderr);
@@ -123,7 +122,7 @@ int main()
             close(client_fd);
             exit(EXIT_FAILURE);
         }
-        if (verify_client == ON){
+        if (VERIFY_CLIENT == ON){
             /* Get the client's certificate (optional) */
             client_cert = SSL_get_peer_certificate(ssl);
             if (client_cert != NULL) {
