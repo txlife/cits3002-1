@@ -151,12 +151,13 @@ int main()
         /******* START PROCESSING DATA *************/
 
         /* read header - then do action based on header parsing */
-        char header_buf[BLOCK_SIZE];
+        char header_buf[HEADER_SIZE];
+        int len = HEADER_SIZE;
         if ((num = recv_all(client_fd, (unsigned char *)header_buf, &len))== -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
         }
-        // unpack header string
+        /* unpack header string */
         header h;
         if (unpack_header_string(header_buf, &h) == -1) {
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
