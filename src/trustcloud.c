@@ -3,7 +3,7 @@
 /** 
  * Receive file from socket connection
  */
-void receive_file(int sock_fd, char *file_name, int file_size) {
+void receive_file(SSL *ssl, char *file_name, int file_size) {
     int num;
     int received = 0;
     unsigned char rec_buff[BLOCK_SIZE];
@@ -17,7 +17,7 @@ void receive_file(int sock_fd, char *file_name, int file_size) {
     size_t wrote;
     while (received < file_size) {
         int size_rcvd = (int)fmin(BLOCK_SIZE, file_size - received);
-        if ((num = recv_all(sock_fd, rec_buff, &size_rcvd))== -1) {
+        if ((num = recv_all(ssl, rec_buff, &size_rcvd))== -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
         } 
@@ -38,12 +38,13 @@ void receive_file(int sock_fd, char *file_name, int file_size) {
     fclose(fp);
 }
 
-int recv_all(int sock, unsigned char *buf, int *len) { 
+int recv_all(SSL *ssl, unsigned char *buf, int *len) { 
     int total = 0;        // how many bytes we've received
     int bytesleft = *len; // how many we have left to receive
     int n;
     while(total < *len) {
-        n = recv(sock, buf+total, bytesleft, 0);
+        // n = recv(sock, buf+total, bytesleft, 0);
+        n = SSL_read(ssl, buf+total, bytesleft);
         if (n == -1 || n == 0) { break; }
         total += n;
         bytesleft -= n;
@@ -62,7 +63,7 @@ int get_file_size(FILE *fp) {
 /** 
  * Read file and send data to server
  */ 
-void send_file(int sock_fd, FILE *fp) {
+void send_file(SSL *ssl, FILE *fp) {
     // get file size
     int file_size = get_file_size(fp);
 
@@ -78,9 +79,10 @@ void send_file(int sock_fd, FILE *fp) {
             exit(EXIT_FAILURE);
         } else { // try and send the file chunk
             int len = (int)size_read;
-            if ((sendall(sock_fd, buffer, &len)) == -1) {
+            if ((sendall(ssl, buffer, &len)) == -1) {
                 fprintf(stderr, "Failure Sending File\n");
-                close(sock_fd);
+                SSL_shutdown(ssl);
+                SSL_free(ssl);
                 exit(EXIT_FAILURE);
             }
             if (len <= 0) {
@@ -99,12 +101,13 @@ void send_file(int sock_fd, FILE *fp) {
 }
 
 /** Beej's Guide to Network Programming, Hall B.J., 2009 **/
-int sendall(int s, unsigned char *buf, int *len) {
+int sendall(SSL *ssl, unsigned char *buf, int *len) {
     int total = 0;        // how many bytes we've sent
     int bytesleft = *len; // how many we have left to send
     int n;
     while(total < *len) {
-        n = send(s, buf+total, bytesleft, 0);
+        // n = send(s, buf+total, bytesleft, 0);
+        n = SSL_write(ssl, buf + total, bytesleft);
         if (n == -1) { break; }
         total += n;
         bytesleft -= n;
@@ -114,22 +117,24 @@ int sendall(int s, unsigned char *buf, int *len) {
 }
 
 /** Send short message (generally string) **/ 
-void send_message(int sock_fd, char *buffer) {
+void send_message(SSL *ssl, char *buffer) {
     // if ((send(sock_fd, buffer, strlen(buffer),0))== -1) {
     int len = strlen(buffer);
-    if ((sendall(sock_fd, (unsigned char *)buffer, &len))== -1) {
+    if ((sendall(ssl, (unsigned char *)buffer, &len))== -1) {
         fprintf(stderr, "Failure Sending Message\n");
-        close(sock_fd);
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
         exit(EXIT_FAILURE);
     } 
     if (len < (int)strlen(buffer)) {
         fprintf(stderr, "Didn't send full message\n");
-        close(sock_fd);
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
         exit(EXIT_FAILURE);
     }
 }
 
-void send_header(int sock_fd, header h) {
+void send_header(SSL *ssl, header h) {
     char head_buff[HEADER_SIZE];
     if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE) {
         fprintf(stderr, "Incorrect header action for sending header\n");
@@ -154,7 +159,7 @@ void send_header(int sock_fd, header h) {
 
     printf("Sending header buff:\n %s\n", head_buff);
     int len = HEADER_SIZE;
-    sendall(sock_fd, (unsigned char *)head_buff, &len);
+    sendall(ssl, (unsigned char *)head_buff, &len);
     if (len < HEADER_SIZE) {
         fprintf(stderr, "Error sending header\n");
         exit(EXIT_FAILURE);

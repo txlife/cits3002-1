@@ -150,7 +150,7 @@ int main()
         /* read header - then do action based on header parsing */
         char header_buf[HEADER_SIZE];
         int len = HEADER_SIZE;
-        if ((num = recv_all(client_fd, (unsigned char *)header_buf, &len))== -1) {
+        if ((num = recv_all(ssl, (unsigned char *)header_buf, &len))== -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
         }
@@ -168,7 +168,7 @@ int main()
         		char target[BLOCK_SIZE];
         		sprintf(target, "%s/%s", serv_dir, h.file_name);
         		printf("[SERVER] Adding file %s\n", target);
-        		receive_file(client_fd, target, h.file_size);
+        		receive_file(ssl, target, h.file_size);
                 close(client_fd);
                 break;
         	} else if (h.action == FETCH_FILE) {
@@ -185,8 +185,8 @@ int main()
                 h_send.action = ADD_FILE;
                 h_send.file_size = get_file_size(fp);
                 h_send.file_name = h.file_name;
-                send_header(client_fd, h_send);
-                send_file(client_fd, fp);
+                send_header(ssl, h_send);
+                send_file(ssl, fp);
                 break;
             } // if client requests to list files
 		    else if (h.action == LIST_FILE) {

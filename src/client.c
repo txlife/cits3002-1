@@ -154,9 +154,9 @@ int main(int argc, char *argv[])
                 h.action = ADD_FILE;
                 h.file_size = get_file_size(fp);
                 h.file_name = file_name;
-                send_header(socket_fd, h);
+                send_header(ssl, h);
                 // recv(socket_fd, NULL, 1, 0);
-                send_file(socket_fd, fp);
+                send_file(ssl, fp);
             } else {
                 perror("fopen");
                 exit(EXIT_FAILURE);
@@ -168,11 +168,11 @@ int main(int argc, char *argv[])
             h_send.file_name = file_name;
             h_send.file_size = -1;
             header h_recv;
-            send_header(socket_fd, h_send);
+            send_header(ssl, h_send);
             char head_buf[HEADER_SIZE];
             int len = HEADER_SIZE;
             // get header from server with file size
-            if (recv_all(socket_fd, (unsigned char *)head_buf, &len) == -1) {
+            if (recv_all(ssl, (unsigned char *)head_buf, &len) == -1) {
                 perror("recv");
                 exit(EXIT_FAILURE);
             }
@@ -187,7 +187,8 @@ int main(int argc, char *argv[])
             char *client_dir = "client_files";
             char target[1024];
             sprintf(target,"%s/%s", client_dir, h_recv.file_name);            
-            receive_file(socket_fd, target, h_recv.file_size);
+            printf("Here\n");
+            receive_file(ssl, target, h_recv.file_size);
             break;
         }
 	
@@ -197,7 +198,7 @@ int main(int argc, char *argv[])
             h.action = LIST_FILE;
             h.file_size = 0;
             h.file_name = file_name;
-            send_header(socket_fd, h);
+            send_header(ssl, h);
         	while(1){
         		memset(buffer, 0, sizeof(buffer));
         		//num = recv(socket_fd, buffer, sizeof(buffer),0);

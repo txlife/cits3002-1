@@ -43,7 +43,7 @@
 #define RSA_SERVER_CA_PATH   "./server_ca.crt"
 
 #define ON   1
-#define OFF        0
+#define OFF  0
 
 #define BLOCK_SIZE 1024
 #define HEADER_SIZE 1024
@@ -70,18 +70,24 @@ typedef struct header {
  *
  */
 /** Receive file, providing file name to store file as **/ 
-void receive_file	(int, char *, int);
+void receive_file	(SSL *, char *, int);
 
 /** Receive all data from the queue  
  *    (recv not guaranteed to get all data in one go)
  ***/ 
-int recv_all(int , unsigned char *, int *);
+int recv_all(SSL * , unsigned char *, int *);
 
 /** Send file that has been opened successfully to server/client **/
-void send_file 	 	(int, FILE *);
+void send_file 	 	(SSL *, FILE *);
 
 /** Send short message (generally string) **/ 
-void send_message 	(int, char *);
+void send_message 	(SSL *, char *);
+
+/* 
+ * From Beej's Guide to Network Programming, Hall B.J., 2009
+ *    Keeps sending until all data in buffer is sent. 
+ */
+int sendall     (SSL *, unsigned char *, int *);
 
 /** list files**/
 size_t file_list	(const char *,char ***);
@@ -90,7 +96,7 @@ size_t file_list	(const char *,char ***);
  *      to be taken and include other relevant information (file size, 
  *      file name etc.)
  **/
-void send_header	(int,header);
+void send_header	(SSL *,header);
 
 /** get file size **/
 int get_file_size	(FILE *);
@@ -101,10 +107,5 @@ int unpack_header_string	(char *, header *);
 void ShowCerts	(SSL *);
 /** command line options **/
 int help	();
-/* 
- * From Beej's Guide to Network Programming, Hall B.J., 2009
- * 		Keeps sending until all data in buffer is sent. 
- */
-int sendall 		(int, unsigned char *, int *);
 
 #endif
