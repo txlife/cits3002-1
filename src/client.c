@@ -25,6 +25,7 @@ int main(int argc, char *argv[])
     int send_flag = 0;
     int list_flag = 0;
     int vouch_flag = 0;
+    int verify_flag = 0;
     //int index;
     int c;
     opterr = 0;
@@ -38,7 +39,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:lv:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lv:y:")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
@@ -52,6 +53,12 @@ int main(int argc, char *argv[])
 		        break;
             case 'v':
                 vouch_flag = 1;
+                optind--;
+                file_name = argv[optind];
+                certificate = argv[++optind];
+                break;
+            case 'y':
+                verify_flag = 1;
                 optind--;
                 file_name = argv[optind];
                 certificate = argv[++optind];
@@ -197,9 +204,32 @@ int main(int argc, char *argv[])
 
         /* Vouch File */
         else if(vouch_flag){
-            printf("1");
             header h;
             h.action = VOUCH_FILE;
+            h.file_size = 0;
+            h.file_name = file_name;
+            h.certificate = certificate;
+            send_header(socket_fd, h);
+            while(1){
+                memset(buffer, 0, sizeof(buffer));
+                //num = recv(socket_fd, buffer, sizeof(buffer),0);
+                num = SSL_read(ssl, buffer, sizeof(buffer));
+                if ( num <= 0 )
+                {
+                        printf("Either Connection Closed or Error\n");
+                        //Break from the While
+                        break;
+                }
+
+                buff[num] = '\0';
+                printf("%s\n",buffer);
+            }
+            break;
+        }
+
+        else if (verify_flag){
+            header h;
+            h.action = VERIFY_FILE;
             h.file_size = 0;
             h.file_name = file_name;
             h.certificate = certificate;
