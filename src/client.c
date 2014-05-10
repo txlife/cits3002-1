@@ -236,7 +236,6 @@ int main(int argc, char *argv[])
             send_header(ssl, h);
             while(1){
                 memset(buffer, 0, sizeof(buffer));
-                //num = recv(socket_fd, buffer, sizeof(buffer),0);
                 num = SSL_read(ssl, buffer, sizeof(buffer));
                 if ( num <= 0 )
                 {
