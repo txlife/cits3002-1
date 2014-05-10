@@ -22,6 +22,7 @@
 #include <openssl/rsa.h>
 #include <openssl/pem.h>
 #include <openssl/evp.h>
+#include <openssl/md5.h>
 
 
 /** Operation Header Action Descriptor Flag Definitions **/
@@ -29,6 +30,7 @@
 #define FETCH_FILE 1
 #define	LIST_FILE 2
 #define VOUCH_FILE 3
+#define VERIFY_FILE 4
 
 #define PORT 3490
 #define MAXSIZE 1024
@@ -119,6 +121,10 @@ int pass_cb		( char *, int, int, void *);
 RSA* getRsaFp	( const char*);
 /* store signature to file */
 int writeSig	(unsigned char *, char *);
+int verifySig	(char *, const char *);
+unsigned char * 	readSig(unsigned char *, char *);
+int vouchFile 	(char *, const char *, SSL *);
+unsigned char * hashFile	(const char *);
 
 
 #endif
