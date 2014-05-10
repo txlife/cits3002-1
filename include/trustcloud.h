@@ -19,28 +19,32 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/crypto.h>
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/evp.h>
 
 
 /** Operation Header Action Descriptor Flag Definitions **/
 #define ADD_FILE 0
 #define FETCH_FILE 1
 #define	LIST_FILE 2
+#define VOUCH_FILE 3
 
 #define PORT 3490
 #define MAXSIZE 1024
 #define BACKLOG 1024
 
-#define RSA_CLIENT_CERT       "client.crt"
-#define RSA_CLIENT_KEY  "client.key"
+#define RSA_CLIENT_CERT       "client.pem"
+#define RSA_CLIENT_KEY  "client.pem"
  
-#define RSA_CLIENT_CA_CERT      "client_ca.crt"
-#define RSA_CLIENT_CA_PATH      "./client_ca.crt"
+#define RSA_CLIENT_CA_CERT      "client.pem"
+#define RSA_CLIENT_CA_PATH      "./client.pem"
 
-#define RSA_SERVER_CERT     "server.crt"
-#define RSA_SERVER_KEY          "server.key"
+#define RSA_SERVER_CERT     "server.pem"
+#define RSA_SERVER_KEY          "server.pem"
  
-#define RSA_SERVER_CA_CERT "server_ca.crt"
-#define RSA_SERVER_CA_PATH   "./server_ca.crt"
+#define RSA_SERVER_CA_CERT "server_ca.pem"
+#define RSA_SERVER_CA_PATH   "./server_ca.pem"
 
 #define ON   1
 #define OFF  0
@@ -61,9 +65,11 @@ typedef struct header {
 	int file_size;
 	/* Name of file - limited to 59 characters*/	
 	char *file_name;
+	/* Name of certificate */
+	char *certificate;
 } header;
 
-#define NUM_HEAD_FIELDS 3
+#define NUM_HEAD_FIELDS 4
 
 /**
  * Function Declarations 
@@ -107,5 +113,12 @@ int unpack_header_string	(char *, header *);
 void ShowCerts	(SSL *);
 /** command line options **/
 int help	();
+/** get password for cert, vouch file **/
+int pass_cb		( char *, int, int, void *);
+/** get cert file, vouch file **/
+RSA* getRsaFp	( const char*);
+/* store signature to file */
+int writeSig	(unsigned char *, char *);
+
 
 #endif

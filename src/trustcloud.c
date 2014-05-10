@@ -43,7 +43,6 @@ int recv_all(SSL *ssl, unsigned char *buf, int *len) {
     int bytesleft = *len; // how many we have left to receive
     int n;
     while(total < *len) {
-        // n = recv(sock, buf+total, bytesleft, 0);
         n = SSL_read(ssl, buf+total, bytesleft);
         if (n == -1 || n == 0) { break; }
         total += n;
@@ -69,7 +68,6 @@ void send_file(SSL *ssl, FILE *fp) {
 
     while (1) {
         char unsigned buffer[BLOCK_SIZE];
-        // char *buffer = malloc(1024*sizeof(char *));
         size_t size_read;
         if ((size_read = fread(buffer, 1, BLOCK_SIZE, fp)) == 0) {
             perror("fread()\n");
@@ -106,7 +104,6 @@ int sendall(SSL *ssl, unsigned char *buf, int *len) {
     int bytesleft = *len; // how many we have left to send
     int n;
     while(total < *len) {
-        // n = send(s, buf+total, bytesleft, 0);
         n = SSL_write(ssl, buf + total, bytesleft);
         if (n == -1) { break; }
         total += n;
@@ -118,7 +115,6 @@ int sendall(SSL *ssl, unsigned char *buf, int *len) {
 
 /** Send short message (generally string) **/ 
 void send_message(SSL *ssl, char *buffer) {
-    // if ((send(sock_fd, buffer, strlen(buffer),0))== -1) {
     int len = strlen(buffer);
     if ((sendall(ssl, (unsigned char *)buffer, &len))== -1) {
         fprintf(stderr, "Failure Sending Message\n");
@@ -136,10 +132,14 @@ void send_message(SSL *ssl, char *buffer) {
 
 void send_header(SSL *ssl, header h) {
     char head_buff[HEADER_SIZE];
-    if (h.action != ADD_FILE && h.action != FETCH_FILE && h.action != LIST_FILE) {
+    if (   h.action != ADD_FILE 
+        && h.action != FETCH_FILE 
+        && h.action != LIST_FILE 
+        && h.action != VOUCH_FILE) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
+    // pack header into string, using new line characters as delimiters
     char *head_buff_loc = head_buff;
     sprintf(head_buff_loc, "%d\n", (short)h.action);
     while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
@@ -149,8 +149,13 @@ void send_header(SSL *ssl, header h) {
     if (file_name[strlen(file_name) - 1] == '\0') 
         file_name[strlen(file_name) - 1] = '\n';
     sprintf(++head_buff_loc, "%s\n", file_name);
+    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+    char *certificate = h.certificate;
+    if (certificate[strlen(certificate) - 1] == '\0') 
+        certificate[strlen(certificate) - 1] = '\n';
+    sprintf(++head_buff_loc, "%s\n", h.certificate);
 
-    head_buff_loc += 1 + strlen(file_name);
+    head_buff_loc += 1 + strlen(certificate);
 
     while (head_buff_loc < head_buff + HEADER_SIZE - 1) {
         *head_buff_loc = '\0';
@@ -191,6 +196,10 @@ int unpack_header_string(char *head_string, header *h) {
             case 2:
                 h->file_name = malloc(strlen(buff) * sizeof(h->file_name));
                 strcpy(h->file_name, buff);
+                break;
+            case 3:
+                h->certificate = malloc(strlen(buff) * sizeof(h->certificate));
+                strcpy(h->certificate, buff);
                 break;
             default:
                 break;
@@ -262,3 +271,203 @@ int help(){
     fprintf(stderr, "Usage: client -h hostname [-a add_file_name] [-l]\n");
     return 0;
 }
+
+/* RSA password stuff, for vouch file */
+int pass_cb( char *buf, int size, int rwflag, void *u )
+{
+  if ( rwflag == 1 ) {
+    /* What does this really means? */
+  }
+  int len;
+  char tmp[1024];
+  printf( "Enter pass phrase for '%s': ", (char*)u );
+  scanf( "%s", tmp );
+  len = strlen( tmp );
+
+  if ( len <= 0 ) return 0;
+  if ( len > size ) len = size;
+
+  memset( buf, '\0', size );
+  memcpy( buf, tmp, len );
+  return len;
+}
+
+/* get RSA cert, for vouch file */
+RSA* getRsaFp( const char* rsaprivKeyPath )
+{
+  FILE* fp;
+  fp = fopen( rsaprivKeyPath, "r" );
+  if ( fp == 0 ) {
+    fprintf( stderr, "Couldn't open RSA priv key: '%s'. %s\n",
+             rsaprivKeyPath, strerror(errno) );
+    exit(1);
+  }
+ 
+  RSA *rsa = 0;
+  rsa = RSA_new();
+  if ( rsa == 0 ) {
+    fprintf( stderr, "Couldn't create new RSA priv key obj.\n" );
+    unsigned long sslErr = ERR_get_error();
+    if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+    fclose( fp );
+    exit( 1 );
+  }
+ 
+  rsa = PEM_read_RSAPrivateKey(fp, 0, pass_cb, (char*)rsaprivKeyPath);
+  if ( rsa == 0 ) {
+    fprintf( stderr, "Couldn't use RSA priv keyfile.\n" );
+    unsigned long sslErr = ERR_get_error();
+    if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+    fclose( fp );
+    exit( 1 );
+  }
+  fclose( fp );
+  return rsa;
+}
+
+/* store signature to file */
+int writeSig(unsigned char *sig, char *sig_name){
+    FILE *fp; 
+    fp = fopen(sig_name,"w"); /* write to file or create a file if it does not exist.*/ 
+    if ( fp == 0 ) {
+        fprintf( stderr, "Couldn't open signature file: '%s'. %s\n",sig_name, strerror(errno) );
+        exit(1);
+    }
+    fprintf(fp,"%s",sig); /*writes*/ 
+    fclose(fp); /*done!*/ 
+    return 0;
+}
+
+/* Get signature length, used part of the formal code */
+int sigLength(char *rsaprivKeyPath, const char *clearText){
+    EVP_PKEY *evpKey;
+    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+    RSA *rsa;
+    /* get private key file */
+    rsa = getRsaFp( rsaprivKeyPath );
+    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    /* create EVP_CTX */
+    EVP_MD_CTX *evp_ctx;
+    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+        fprintf( stderr, "Couldn't create EVP context.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+     
+    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
+        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+     
+    if ( EVP_SignUpdate( evp_ctx, clearText, strlen( clearText ) ) == 0 ) {
+        fprintf( stderr, "Couldn't calculate hash of message.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    unsigned char *sig = NULL;
+    unsigned int sigLen = 0;
+    //memset(sig, 0, MAXSIZE+1024);
+    sig = malloc(EVP_PKEY_size(evpKey));
+    /* check sig */
+    if ( EVP_SignFinal( evp_ctx, sig, &sigLen, evpKey ) == 0 ) {
+        fprintf( stderr, "Couldn't calculate signature.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    EVP_MD_CTX_destroy( evp_ctx );
+    RSA_free( rsa );
+    EVP_PKEY_free( evpKey );
+    ERR_free_strings();
+    return sigLen;
+}
+
+/* Verify file with certain certificate 
+ * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
+ */
+int verifySig(char *rsaprivKeyPath, const char *clearText, unsigned char *sig){
+    printf("-----start verify-----\n");
+    EVP_PKEY *evpKey;
+    RSA *rsa;
+    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    /* get private key file */
+    rsa = getRsaFp( rsaprivKeyPath );
+    printf("%s\n",rsaprivKeyPath);
+    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    /*create evp_ctx */
+    EVP_MD_CTX *evp_ctx;
+    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+        fprintf( stderr, "Couldn't create EVP context.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+
+    if ( EVP_VerifyInit(evp_ctx, EVP_sha1()) == 0 ) {
+        fprintf( stderr, "Couldn't exec EVP_VerifyInit.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+
+    if(!EVP_VerifyUpdate( evp_ctx, clearText, strlen(clearText))){
+
+               printf("EVP_VerifyUpdate error. \n");
+
+               exit(1);
+
+    }
+    //printf("ClearText:%s\n",clearText);
+    int vsigLen = sigLength(rsaprivKeyPath,clearText);
+    int vr;
+    //memset(sig, 0, MAXSIZE+1024);
+    //printf("strlen(sig):%lu\n",strlen((const char *)sig));
+    //printf("vsiglen:%u\n",vsigLen);
+    vr = EVP_VerifyFinal( evp_ctx, sig, vsigLen, evpKey);
+    if( vr == -1){
+
+               printf("verify by public key error. \n");
+
+               exit(1);
+
+    }
+    else if(vr == 1){
+        printf("verified\n");
+    }
+    else{
+        printf("failed\n");
+    }
+    return 0;
+}
+
