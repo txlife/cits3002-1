@@ -1,6 +1,6 @@
 CXX = gcc
-# CXX = clang
-CFLAGS = -std=c99 -Wextra -Wall -Wshadow -O -pedantic
+ # CXX = clang
+CFLAGS = -std=c99 -Wextra -Wno-deprecated-declarations -Wno-deprecated -Wall -Wshadow -O -pedantic
 
 SRC_DIR = ./src/
 INC_DIR = ./include/
@@ -10,7 +10,7 @@ _INCLUDE = trustcloud.h
 INCLUDE = $(addprefix $(INC_DIR), $(_INCLUDE))
 
 INC_FLAGS = -I$(INC_DIR)
-LDFLAGS = -lm
+LDFLAGS = -lm -lcrypto -lssl
 
 _TRUST_SRC = trustcloud.c
 TRUST_SRC = $(addprefix $(SRC_DIR), $(_TRUST_SRC))
