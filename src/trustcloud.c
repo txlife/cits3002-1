@@ -329,6 +329,40 @@ RSA* getRsaFp( const char* rsaprivKeyPath )
     return rsa;
 }
 
+RSA* getRsaPubFp( const char* rsaprivKeyPath )
+{
+    char *certificate = NULL;
+    certificate = malloc(MAXSIZE);
+    sprintf(certificate,"server_certs/%s", rsaprivKeyPath);
+
+    FILE* fp;
+    fp = fopen( certificate, "r" );
+    if ( fp == 0 ) {
+    fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
+    exit(1);
+    }
+
+    RSA *rsa = 0;
+    rsa = RSA_new();
+    if ( rsa == 0 ) {
+    fprintf( stderr, "Couldn't create new RSA priv key obj.\n" );
+    unsigned long sslErr = ERR_get_error();
+    if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+    fclose( fp );
+    exit( 1 );
+    }
+
+    if (!PEM_read_RSA_PUBKEY(fp, &rsa, NULL, NULL))
+    {
+        fprintf(stderr, "Error loading RSA Public Key File.\n");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
+
+    fclose( fp );
+    return rsa;
+}
+
 /* store signature to file */
 int writeSig(unsigned char *sig, char *sig_name){
     FILE *fp; 
@@ -379,7 +413,7 @@ unsigned char * readSig(unsigned char *sig, char *sig_name){
     return sig;
 }
 
-/* Get signature length, used part of the formal code */
+/* Get signature length, used part of the formal code 
 int sigLength(char *rsaprivKeyPath, const char *clearText){
     EVP_PKEY *evpKey;
     if ( (evpKey = EVP_PKEY_new()) == 0 ) {
@@ -392,11 +426,11 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
     unsigned char *md5Value1 = NULL;
     md5Value1 = malloc(MD5_DIGEST_LENGTH);
     hashFile(md5Value1, clearText);
-    printf("MD5:");
-    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value1[i]);
-    printf("\n");
-    /* get private key file */
-    rsa = getRsaFp( rsaprivKeyPath );
+    //printf("MD5:");
+    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value1[i]);
+    //printf("\n");
+    /* get private key file 
+    rsa = getRsaPubFp( rsaprivKeyPath );
     if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
         fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
         unsigned long sslErr = ERR_get_error();
@@ -404,7 +438,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
         exit(1);
     }
 
-    /* create EVP_CTX */
+    /* create EVP_CTX 
     EVP_MD_CTX *evp_ctx;
     if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
         fprintf( stderr, "Couldn't create EVP context.\n" );
@@ -432,7 +466,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
     //memset(sig, 0, MAXSIZE+1024);
     sig1 = malloc(EVP_PKEY_size(evpKey));
     sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
-    /* check sig */
+    /* check sig 
     if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
         fprintf( stderr, "Couldn't calculate signature.\n" );
         unsigned long sslErr = ERR_get_error();
@@ -447,6 +481,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
     free(sig1);
     return sigLen;
 }
+*/
 
 /* Verify file with certain certificate 
  * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
@@ -473,8 +508,9 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     }
 
     /* get private key file */
-    rsa = getRsaFp( rsaprivKeyPath );
-    int vsigLen = sigLength(rsaprivKeyPath,clearText);
+    rsa = getRsaPubFp( rsaprivKeyPath );
+    int vsigLen=128;
+    //int vsigLen = sigLength(rsaprivKeyPath,clearText);
     int vr;
     unsigned char *sig2 = NULL;
     sig2 = readSig(sig2, sig_name);
