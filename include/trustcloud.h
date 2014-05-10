@@ -124,7 +124,7 @@ int writeSig	(unsigned char *, char *);
 int verifySig	(char *, const char *);
 unsigned char * 	readSig(unsigned char *, char *);
 int vouchFile 	(char *, const char *, SSL *);
-unsigned char * hashFile	(const char *);
+int hashFile	(unsigned char *,const char *);
 
 
 #endif
