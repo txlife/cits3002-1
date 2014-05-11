@@ -492,7 +492,7 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
-    RSA *rsa;
+    //RSA *rsa;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
     hashFile(md5Value, clearText);
@@ -508,7 +508,7 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     }
 
     /* get private key file */
-    rsa = getRsaPubFp( rsaprivKeyPath );
+    //rsa = getRsaPubFp( rsaprivKeyPath );
     int vsigLen=128;
     //int vsigLen = sigLength(rsaprivKeyPath,clearText);
     int vr;
@@ -519,18 +519,31 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     for(int i = 0; i < vsigLen; i++) printf("%02x", sig2[i]);
         printf("\n");
     printf( "Length: '%i'\n", vsigLen );
-    //printf("verify : %s\n length:%i\n",sig2,vsigLen);
-    char *certificate = malloc(MAXSIZE);
-    strcpy(certificate,rsaprivKeyPath);
-    sprintf(rsaprivKeyPath,"client_certs/%s", certificate);
     //printf("%s\n",certificate);
     //printf("%s\n",rsaprivKeyPath);
+
+    /*****************************************************/
+
+    char *certificate = NULL;
+    certificate = malloc(MAXSIZE);
+    sprintf(certificate,"server_certs/%s", rsaprivKeyPath);
+
+    FILE* fp;
+    fp = fopen( certificate, "r" );
+    if ( fp == 0 ) {
+    fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
+    exit(1);
+    }
+    X509 * xcert = PEM_read_X509(fp, NULL, NULL, NULL);
+    evpKey = X509_get_pubkey(xcert);
+    /*
     if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
         fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
         exit(1);
     }
+    */
 
     /*create evp_ctx */
     EVP_MD_CTX *evp_ctx;
@@ -575,7 +588,7 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
         printf("failed\n");
     }
     EVP_MD_CTX_destroy( evp_ctx );
-    RSA_free( rsa );
+    //RSA_free( rsa );
     EVP_PKEY_free( evpKey );
     ERR_free_strings();
     free(md5Value);
