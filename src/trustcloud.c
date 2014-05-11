@@ -485,6 +485,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
 
 /* Verify file with certain certificate 
  * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
+ * http://stackoverflow.com/questions/15032338/extract-public-key-of-a-der-encoded-certificate-in-c
  */
 int verifySig(char *rsaprivKeyPath, const char *clearText){
     char *sig_name = NULL;
