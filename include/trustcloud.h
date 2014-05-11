@@ -45,8 +45,8 @@
 #define RSA_SERVER_CERT     "server.pem"
 #define RSA_SERVER_KEY          "server.pem"
  
-#define RSA_SERVER_CA_CERT "server_ca.pem"
-#define RSA_SERVER_CA_PATH   "./server_ca.pem"
+#define RSA_SERVER_CA_CERT "server.pem"
+#define RSA_SERVER_CA_PATH   "./server.pem"
 
 #define ON   1
 #define OFF  0
@@ -124,7 +124,8 @@ int writeSig	(unsigned char *, char *);
 int verifySig	(char *, const char *);
 unsigned char * 	readSig(unsigned char *, char *);
 int vouchFile 	(char *, const char *, SSL *);
-unsigned char * hashFile	(const char *);
+int hashFile	(unsigned char *,const char *);
+RSA* getRsaPubFp	(const char*);
 
 
 #endif
