@@ -239,9 +239,89 @@ int main(int argc, char *argv[])
             h.file_size = 0;
             h.file_name = file_name;
             h.certificate = certificate;
+            unsigned char *md5Value = NULL;
+            md5Value = malloc(MD5_DIGEST_LENGTH);
+            char *rsaprivKeyPath = NULL;
+            rsaprivKeyPath = malloc(MAXSIZE);
+            sprintf( rsaprivKeyPath, "%s", h.certificate );
             send_header(ssl, h);
+            num = SSL_read(ssl, md5Value, MD5_DIGEST_LENGTH);
+            if ( num <= 0 )
+            {
+                    printf("Either Connection Closed or Error\n");
+                    //Break from the While
+                    break;
+            }
+            printf("MD5:");
+            for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+            printf("\n");
+            EVP_PKEY *evpKey;
+            if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+                fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+ 
+            RSA *rsa;
+            rsa = getRsaFp( rsaprivKeyPath );
+            if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+                fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+
+            /* create EVP_CTX */
+            EVP_MD_CTX *evp_ctx;
+            if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+                fprintf( stderr, "Couldn't create EVP context.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+             
+            if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
+                fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+             
+            if ( EVP_SignUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value) ) == 0 ) {
+                fprintf( stderr, "Couldn't calculate hash of message.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+
+            unsigned char *sig1 = NULL;
+            unsigned int sigLen = 0;
+            //memset(sig, 0, MAXSIZE+1024);
+            sig1 = malloc(EVP_PKEY_size(evpKey));
+            sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
+            /* check sig */
+            if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
+                fprintf( stderr, "Couldn't calculate signature.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+            printf("SIGNATURE:");
+            for(int i = 0; i < sigLen; i++) printf("%02x", sig1[i]);
+            printf("\n");
+            printf("SigLen: %i\n",strlen(sig1));
+            //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
+            SSL_write(ssl,sig1,128);
+            EVP_MD_CTX_destroy( evp_ctx );
+            RSA_free( rsa );
+            EVP_PKEY_free( evpKey );
+            ERR_free_strings();
+            free(md5Value);
+            free(sig1);
             while(1){
                 memset(buffer, 0, sizeof(buffer));
+                //num = recv(socket_fd, buffer, sizeof(buffer),0);
                 num = SSL_read(ssl, buffer, sizeof(buffer));
                 if ( num <= 0 )
                 {

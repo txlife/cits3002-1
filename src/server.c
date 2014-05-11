@@ -190,7 +190,9 @@ int main()
                 const char *clearText = h.file_name;
                 //vouchFile(rsaprivKeyPath,clearText, ssl);
                 
-                verifySig(rsaprivKeyPath,clearText);
+                if(verifySig(rsaprivKeyPath,clearText) == 1){
+                    printf("Verify failed\n");
+                }
 
                 break;
             }

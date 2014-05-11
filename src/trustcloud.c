@@ -387,7 +387,7 @@ unsigned char * readSig(unsigned char *sig, char *sig_name){
     fp = fopen(sig_name,"r"); /* write to file or create a file if it does not exist.*/ 
     if ( fp == 0 ) {
         fprintf( stderr, "Couldn't open signature file: '%s'. %s\n",sig_name, strerror(errno) );
-        exit(1);
+        return (unsigned char *)' ';
     }
 
     /* get the file size */
@@ -429,7 +429,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
     //printf("MD5:");
     //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value1[i]);
     //printf("\n");
-    /* get private key file 
+    // get private key file 
     rsa = getRsaPubFp( rsaprivKeyPath );
     if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
         fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
@@ -438,7 +438,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
         exit(1);
     }
 
-    /* create EVP_CTX 
+    //create EVP_CTX 
     EVP_MD_CTX *evp_ctx;
     if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
         fprintf( stderr, "Couldn't create EVP context.\n" );
@@ -466,7 +466,7 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
     //memset(sig, 0, MAXSIZE+1024);
     sig1 = malloc(EVP_PKEY_size(evpKey));
     sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
-    /* check sig 
+    // check sig 
     if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
         fprintf( stderr, "Couldn't calculate signature.\n" );
         unsigned long sslErr = ERR_get_error();
@@ -513,7 +513,9 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     //int vsigLen = sigLength(rsaprivKeyPath,clearText);
     int vr;
     unsigned char *sig2 = NULL;
-    sig2 = readSig(sig2, sig_name);
+    if((sig2 = readSig(sig2, sig_name)) == (unsigned char *)' '){
+        return 1;
+    }
     for(int i = 0; i < vsigLen; i++) printf("%02x", sig2[i]);
         printf("\n");
     printf( "Length: '%i'\n", vsigLen );
@@ -583,76 +585,34 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
 
 /* vouch file */
 int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
-    EVP_PKEY *evpKey;
-    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
-        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    RSA *rsa;
+    int num;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
     hashFile(md5Value, clearText);
-    printf("MD5:");
-    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
-    printf("\n");
-    //printf("%i\n",sizeof(md5Value));
-    //printf("%i\n",strlen(md5Value));
-    /* get private key file */
-    rsa = getRsaFp( rsaprivKeyPath );
-    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
-        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+    unsigned char *sig = NULL;
+    sig = malloc(128);
+    sig[MAXSIZE] = (unsigned char) "\0";
+    //printf("MD5:");
+    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    //printf("\n");
+    SSL_write(ssl,md5Value,sizeof(md5Value)*2);
+    num = SSL_read(ssl, sig, 128);
+    if ( num <= 0 )
+    {
+            printf("Either Connection Closed or Error\n");
+            //Break from the While
+            exit(EXIT_FAILURE);
     }
 
-    /* create EVP_CTX */
-    EVP_MD_CTX *evp_ctx;
-    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
-        fprintf( stderr, "Couldn't create EVP context.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-     
-    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
-        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-     
-    if ( EVP_SignUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value) ) == 0 ) {
-        fprintf( stderr, "Couldn't calculate hash of message.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-
-    unsigned char *sig1 = NULL;
-    unsigned int sigLen = 0;
-    //memset(sig, 0, MAXSIZE+1024);
-    sig1 = malloc(EVP_PKEY_size(evpKey));
-    sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
-    /* check sig */
-    if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
-        fprintf( stderr, "Couldn't calculate signature.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
-    for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig1[i]);
-        printf("\n");
-    printf( "Length: '%i'\n", sigLen );
+    //for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig[i]);
+    //    printf("\n");
+    //printf( "Length: '%i'\n", sigLen );
     int ws = 0;
     char *sig_name = NULL;
     //memset(sig_name, 0, MAXSIZE);
     sig_name = malloc(MAXSIZE);
     sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
-    ws = writeSig(sig1,sig_name);
+    ws = writeSig(sig,sig_name);
     if(ws != 0){
         fprintf( stderr, "Couldn't write signature to file.\n" );
         exit(1);
@@ -660,13 +620,9 @@ int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
     else{
         printf("Signature file successfully written : %s\n", sig_name);
     }
-    EVP_MD_CTX_destroy( evp_ctx );
-    RSA_free( rsa );
-    EVP_PKEY_free( evpKey );
-    ERR_free_strings();
     SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
     free(md5Value);
-    free(sig1);
+    free(sig);
     return 0;
 }
 
