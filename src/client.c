@@ -27,6 +27,7 @@ int main(int argc, char *argv[])
     int fetch_flag = 0;
     int vouch_flag = 0;
     int verify_flag = 0;
+    int findissuer_flag = 0;
     int c;
     opterr = 0;
 
@@ -39,7 +40,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:lf:v:y:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lf:v:y:i:")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
@@ -66,6 +67,10 @@ int main(int argc, char *argv[])
                 optind--;
                 file_name = argv[optind];
                 certificate = argv[++optind];
+                break;
+            case 'i':
+                findissuer_flag = 1;
+                certificate = optarg;
                 break;
             default:
                 fprintf(stderr, "Flag not recognized.\n");
@@ -252,9 +257,9 @@ int main(int argc, char *argv[])
                     //Break from the While
                     break;
             }
-            printf("MD5:");
-            for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
-            printf("\n");
+            //printf("MD5:");
+            //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+            //printf("\n");
             EVP_PKEY *evpKey;
             if ( (evpKey = EVP_PKEY_new()) == 0 ) {
                 fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
@@ -307,10 +312,10 @@ int main(int argc, char *argv[])
                 if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
                 exit(1);
             }
-            printf("SIGNATURE:");
-            for(int i = 0; i < sigLen; i++) printf("%02x", sig1[i]);
-            printf("\n");
-            printf("SigLen: %i\n",strlen(sig1));
+            //printf("SIGNATURE:");
+            //for(int i = 0; i < sigLen; i++) printf("%02x", sig1[i]);
+            //printf("\n");
+            //printf("SigLen: %i\n",strlen(sig1));
             //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
             SSL_write(ssl,sig1,128);
             EVP_MD_CTX_destroy( evp_ctx );
@@ -357,6 +362,16 @@ int main(int argc, char *argv[])
                 buff[num] = '\0';
                 printf("%s\n",buffer);
             }
+            break;
+        }
+
+        else if (findissuer_flag){
+            header h;
+            h.action = FIND_ISSUER;
+            h.file_size = 0;
+            h.file_name = " ";
+            h.certificate = certificate;
+            send_header(ssl, h);
             break;
         }
     }

@@ -197,6 +197,24 @@ int main()
                 break;
             }
 
+            else if (h.action == FIND_ISSUER){
+                char *certPath = NULL;
+                certPath = malloc(MAXSIZE);
+                char *issuer = NULL;
+                issuer = malloc(MAXSIZE);
+                sprintf( certPath, "%s", h.certificate );
+                int result = 0;
+                //*rsaprivKeyPath = h.certificate;
+                
+                if( (result = findIssuer(issuer, certPath)) == 0){
+                    printf("Find Issuer: %s\n", issuer);
+                }
+                else if(result == 2){
+                    printf("No Issuer found\n");
+                }
+
+                break;
+            }
         } //End of Inner While...
         /********** END DATA PROCESSING **************/
 

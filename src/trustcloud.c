@@ -136,7 +136,8 @@ void send_header(SSL *ssl, header h) {
         && h.action != FETCH_FILE 
         && h.action != LIST_FILE 
         && h.action != VOUCH_FILE
-		&& h.action != VERIFY_FILE) {
+		&& h.action != VERIFY_FILE
+        && h.action != FIND_ISSUER ) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
@@ -664,3 +665,100 @@ int hashFile(unsigned char* c, const char *fileName){
     fclose (fp);
     return 0;
 }
+
+
+/* Find if a ring of trust exist
+ * https://zakird.com/2013/10/13/certificate-parsing-with-openssl/
+ * http://stackoverflow.com/questions/1271064/how-do-i-loop-through-all-files-in-a-folder-using-c
+ */
+ int findIssuer(char *issuer, char *certName){
+    //printf("start finding\n");
+    int result = 0;
+    char *certificate = NULL;
+    certificate = malloc(MAXSIZE);
+    sprintf(certificate,"server_certs/%s", certName);
+    FILE *fp = fopen(certificate, "r");
+    if (!fp) {
+        fprintf(stderr, "unable to open: %s\n", certificate);
+        return 1;
+    }
+    
+    X509 *cert = PEM_read_X509(fp, NULL, NULL, NULL);
+    if (!cert) {
+        fprintf(stderr, "unable to parse certificate in: %s\n", certificate);
+        fclose(fp);
+        return 1;
+    }
+    
+    //read subject data
+    //char *subj = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+    //read issuer data
+    //char *issuer = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+    //verify
+
+    //loop through the directory
+    struct dirent *dp;
+    DIR *dfd;
+
+    char *dir ;
+    dir = malloc(MAXSIZE);
+    sprintf(dir, "server_certs");
+
+
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return 1;
+    }
+
+    //start looping the certs in the directory
+    while((dp = readdir(dfd)) != NULL){ //need to be changed
+        char *certbuf = NULL;
+        certbuf = malloc(MAXSIZE);
+        certbuf = dp->d_name;
+        struct stat stbuf ;
+        if( stat(certbuf,&stbuf ) == -1 )
+        {
+            printf("Unable to stat file: %s\n",certbuf) ;
+            continue ;
+        }
+
+        // skip sub directories
+        if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        {
+            continue;
+        }
+        // skip non .pem files
+        if( !*certbuf 
+            || strlen(certbuf) <4 
+            || certbuf[strlen(certbuf)-1] != 'm' 
+            || certbuf[strlen(certbuf)-2] != 'e'
+            || certbuf[strlen(certbuf)-3] != 'p'){
+            continue;
+        }
+        //skip the cert file itself avoid self-signed cert
+        if(!strcmp(certbuf,certName)){
+            continue;
+        }
+        FILE *fp1 = fopen(certbuf, "r");
+        if (!fp1) {
+            fprintf(stderr, "unable to open: %s\n", certbuf);
+            return 1;
+        }
+    
+        X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
+        //once a cert is matched, return it
+        if (X509_check_issued(certContext, cert) == X509_V_OK) {
+            sprintf(issuer, "%s", certbuf);
+            result = 0;
+            break;
+        } else {
+            result = 2;
+        }
+        fclose(fp1);
+        X509_free(certContext);
+    }
+    X509_free(cert);
+    fclose(fp);
+    return result;
+ }

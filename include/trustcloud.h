@@ -11,6 +11,7 @@
 
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <math.h>
@@ -23,7 +24,12 @@
 #include <openssl/pem.h>
 #include <openssl/evp.h>
 #include <openssl/md5.h>
-
+#include <openssl/x509v3.h>
+#include <openssl/bn.h>
+#include <openssl/asn1.h>
+#include <openssl/x509.h>
+#include <openssl/x509_vfy.h>
+#include <openssl/bio.h>
 
 /** Operation Header Action Descriptor Flag Definitions **/
 #define ADD_FILE 0
@@ -31,6 +37,7 @@
 #define	LIST_FILE 2
 #define VOUCH_FILE 3
 #define VERIFY_FILE 4
+#define FIND_ISSUER 5
 
 #define PORT 3490
 #define MAXSIZE 1024
@@ -126,6 +133,7 @@ unsigned char * 	readSig(unsigned char *, char *);
 int vouchFile 	(char *, const char *, SSL *);
 int hashFile	(unsigned char *,const char *);
 RSA* getRsaPubFp	(const char*);
+int findIssuer(char *, char *);
 
 
 #endif
