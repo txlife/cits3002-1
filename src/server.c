@@ -7,7 +7,6 @@ int main()
     int socket_fd, client_fd,num;
     socklen_t size;
     SSL_CTX *ctx;
-
     /*******  START SSL ***************/
     /* http://mooon.blog.51cto.com/1246491/909932 */
     /* SSL Libraries Init */
@@ -165,15 +164,17 @@ int main()
         		char **files;
         		size_t count;
         		unsigned int i;
-        		count = file_list("./server_files/", &files);
+        		count = file_list(SERVER_FILE_DIR, &files);
         		printf("There are %zu files in the directory,transmitting file list.\n", count);
         		for (i = 0; i < count; i++) {
         			// SSL_write(ssl,files[i],strlen(files[i]));
                     char send_str[MAXSIZE];
 
-                    // if (file verified)
+                    // get ring of trust circumference for file[i]
+
+                    // if (ring-of-trust(file[i]) >= h.circ) // file verified and protected
                     sprintf(send_str, "Verified (c = 3): %s", files[i]);
-                    // else (file not verified)
+                    // else // file not verified
                     // sprintf(send_str, "Not Verified (c = 3): %s", files[i]);
 
                     send_message(ssl, send_str);
@@ -194,14 +195,47 @@ int main()
                 // sprintf( rsaprivKeyPath, "%s", h.certificate );
                 //*rsaprivKeyPath = h.certificate;
                 const char *clearText = h.file_name;
+                char *certificate_file_name = h.certificate;
+                char cert_loc[MAXSIZE];
+                sprintf(cert_loc, "%s/%s", SERVER_CERT_DIR, certificate_file_name);
+                if (!check_if_file_exists(cert_loc)) {
+                    char *message = "Unable to locate certificate on the server. Please upload using -a\n\0";
+                    // send_message
+                    // should notify client here somehow
+                }
+
                 char target[BLOCK_SIZE];
                 sprintf(target, "server_files/%s", h.file_name);
                 unsigned char *md5Value = NULL;
                 md5Value = malloc(MD5_DIGEST_LENGTH);
                 hashFile(md5Value, (const char *)target);
                 send_message(ssl, (char *)md5Value);
-                // vouchFile(rsaprivKeyPath,clearText, ssl);
+
+                unsigned char signature[MAXSIZE];
+                printf("got here\n");
+                SSL_read(ssl, signature, 128);
+
+                char sig_name[MAXSIZE];
+                sprintf(sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearText, certificate_file_name);
+                printf("Sig loc: %s\n", sig_name);
+                if (writeSig(signature, sig_name) != 0) {
+                    fprintf(stderr, "Could not save signature file\n");
+                    exit(EXIT_FAILURE);
+                }
                 
+                // get encrypted hash back, then verify:
+                //      decrypt using client's public cert
+                //      check decrypted hash against original calculated md5Value
+                if (verifySig(h.certificate, clearText) != 0) {
+                    // probably do something more effective here, like 
+                    // remove the file or the signature or something.
+                    // Guess the file is just not protected by this cert
+                    fprintf(stderr,"Verification failed after vouching\n");
+                    // exit(EXIT_FAILURE);
+                }
+
+                // recv_all(ssl, &signature);
+                // vouchFile(rsaprivKeyPath,clearText, ssl);
                 //verifySig(rsaprivKeyPath,clearText);
 
                 break;

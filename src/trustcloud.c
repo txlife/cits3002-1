@@ -490,13 +490,15 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
 int verifySig(char *rsaprivKeyPath, const char *clearText){
     char *sig_name = NULL;
     sig_name = malloc(MAXSIZE);
-    sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
+    sprintf( sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR,  clearText, rsaprivKeyPath );
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
     //RSA *rsa;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
-    hashFile(md5Value, clearText);
+    char clear_text_loc[MAXSIZE];
+    sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
+    hashFile(md5Value, clear_text_loc);
     printf("MD5:");
     for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
     printf("\n");
@@ -663,4 +665,11 @@ int hashFile(unsigned char* c, const char *fileName){
     //printf (" %s\n", filename);
     fclose (fp);
     return 0;
+}
+
+/* return 1 if file exists, 0 otherwise */
+int check_if_file_exists(const char *file_name) {
+    struct stat st;
+    int ret = stat(file_name, &st);
+    return ret == 0;
 }

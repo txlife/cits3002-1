@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
     int vouch_flag = 0;
     int verify_flag = 0;
     int c;
+    int circumference = 0;
     opterr = 0;
 
     /**
@@ -67,6 +68,12 @@ int main(int argc, char *argv[])
                 file_name = argv[optind];
                 certificate = argv[++optind];
                 break;
+            case 'c':
+                if (!isdigit(optarg[0])) {
+                    fprintf(stderr, "Invalid argument for -c, please use number");
+                    exit(EXIT_FAILURE);
+                }
+                circumference = atoi(optarg);
             default:
                 fprintf(stderr, "Flag not recognized.\n");
                 exit(EXIT_FAILURE);
@@ -214,6 +221,7 @@ int main(int argc, char *argv[])
             h.file_size = 0;
             h.file_name = " ";
             h.certificate = " ";
+            h.circ = circumference;
             send_header(ssl, h);
         	while(1){
         		memset(buffer, 0, sizeof(buffer));
@@ -241,10 +249,11 @@ int main(int argc, char *argv[])
             h.certificate = certificate;
             unsigned char *md5Value = NULL;
             md5Value = malloc(MD5_DIGEST_LENGTH);
-            char *rsaprivKeyPath = NULL;
-            rsaprivKeyPath = malloc(MAXSIZE);
-            sprintf( rsaprivKeyPath, "%s", h.certificate );
+            char *rsaprivKeyPath = RSA_CLIENT_KEY; // client's private key file name
+            // rsaprivKeyPath = malloc(MAXSIZE);
+            // sprintf( rsaprivKeyPath, "%s", h.certificate );
             send_header(ssl, h);
+            // get hash of file from server 
             num = SSL_read(ssl, md5Value, MD5_DIGEST_LENGTH);
             if ( num <= 0 )
             {
@@ -263,6 +272,7 @@ int main(int argc, char *argv[])
                 exit(1);
             }
  
+            // read private key (rsa) from client's private key pem
             RSA *rsa;
             rsa = getRsaFp( rsaprivKeyPath );
             if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
@@ -288,6 +298,7 @@ int main(int argc, char *argv[])
                 exit(1);
             }
              
+            // add hash to evp ctx to later be encrypted
             if ( EVP_SignUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value) ) == 0 ) {
                 fprintf( stderr, "Couldn't calculate hash of message.\n" );
                 unsigned long sslErr = ERR_get_error();
@@ -299,8 +310,13 @@ int main(int argc, char *argv[])
             unsigned int sigLen = 0;
             //memset(sig, 0, MAXSIZE+1024);
             sig1 = malloc(EVP_PKEY_size(evpKey));
+
+            // Not sure if this is necessary -- encrypted hash might
+            // be just binary data so not valid to add a null byte.
+            // If this is just to use strlen later to get sig size, 
+            // then we should use another way 
             sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
-            /* check sig */
+            /* encrypt hash with client's private key */
             if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
                 fprintf( stderr, "Couldn't calculate signature.\n" );
                 unsigned long sslErr = ERR_get_error();
@@ -310,9 +326,10 @@ int main(int argc, char *argv[])
             printf("SIGNATURE:");
             for(int i = 0; i < sigLen; i++) printf("%02x", sig1[i]);
             printf("\n");
-            printf("SigLen: %i\n",strlen(sig1));
+            printf("SigLen: %i\n", (int)sigLen);
             //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
-            SSL_write(ssl,sig1,128);
+            // send sig back - use header to notify server of file size?
+            SSL_write(ssl,sig1,sigLen);
             EVP_MD_CTX_destroy( evp_ctx );
             RSA_free( rsa );
             EVP_PKEY_free( evpKey );

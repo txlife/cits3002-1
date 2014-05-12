@@ -42,6 +42,11 @@
 #define SERVER_FILE_DIR "server_files"
 #define CLIENT_FILE_DIR "client_files"
 
+#define SERVER_SIG_DIR "server_sigs"
+
+#define SERVER_CERT_DIR "server_certs"
+#define CLIENT_CERT_DIR "client_certs"
+
 #define RSA_CLIENT_CERT       "client.pem"
 #define RSA_CLIENT_KEY  "client.pem"
  
