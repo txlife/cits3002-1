@@ -210,18 +210,6 @@ int unpack_header_string(char *head_string, header *h) {
     return 0;
 }
 
-unsigned char* read_file(char *file_name) {
-    FILE *fp;
-    if (!(fp = fopen(file_name, "r"))) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
-    }
-    int num;
-    while (!feof(fp)) {
-
-    }
-}
-
 /**server list current dir files
  * based on : http://stackoverflow.com/questions/11291154/save-file-listing-into-array-or-something-else-c
 **/
@@ -341,88 +329,39 @@ RSA* getRsaFp( const char* rsaprivKeyPath )
     return rsa;
 }
 
-/* Retrieve RSA of public key from certificate */
-// RSA* getRsaPubFp( const char* certificate_file_name )
-// {
-//     char *certificate = NULL;
-//     certificate = malloc(MAXSIZE);
-//     sprintf(certificate,"server_certs/%s", certificate_file_name);
+RSA* getRsaPubFp( const char* rsaprivKeyPath )
+{
+    char *certificate = NULL;
+    certificate = malloc(MAXSIZE);
+    sprintf(certificate,"server_certs/%s", rsaprivKeyPath);
 
-//     FILE* fp;
-//     fp = fopen( certificate, "r" );
-//     if ( fp == 0 ) {
-//     fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
-//     exit(1);
-//     }
+    FILE* fp;
+    fp = fopen( certificate, "r" );
+    if ( fp == 0 ) {
+    fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
+    exit(1);
+    }
 
-//     RSA *rsa = 0;
-//     rsa = RSA_new();
-//     if ( rsa == 0 ) {
-//     fprintf( stderr, "Couldn't create new RSA priv key obj.\n" );
-//     unsigned long sslErr = ERR_get_error();
-//     if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-//     fclose( fp );
-//     exit( 1 );
-//     }
+    RSA *rsa = 0;
+    rsa = RSA_new();
+    if ( rsa == 0 ) {
+    fprintf( stderr, "Couldn't create new RSA priv key obj.\n" );
+    unsigned long sslErr = ERR_get_error();
+    if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+    fclose( fp );
+    exit( 1 );
+    }
 
-//     // if (!PEM_read_RSA_PUBKEY(fp, &rsa, NULL, NULL))
-//     if (!PEM_read_RSA_PUBKEY(fp, &rsa, NULL, NULL))
-//     {
-//         fprintf(stderr, "Error loading RSA Public Key File.\n");
-//         ERR_print_errors_fp(stderr);
-//         exit(EXIT_FAILURE);
-//     }
+    if (!PEM_read_RSA_PUBKEY(fp, &rsa, NULL, NULL))
+    {
+        fprintf(stderr, "Error loading RSA Public Key File.\n");
+        ERR_print_errors_fp(stderr);
+        exit(EXIT_FAILURE);
+    }
 
-//     fclose( fp );
-//     return rsa;
-// }
-// EVP_PKEY* get_rsa_pub_key_from_cert(const char *cert_file_name) {
-//     FILE *fp;
-    
-//     if (!fp = fopen(cert_file_name, "r")) {
-//         perror("fopen");
-//         exit(EXIT_FAILURE);
-//     }
-
-//     X509 *certificate_struct = d2i_X509_fp(fp, NULL);
-
-// }
-
-
-// RSA* get_rsa_pub_key_from_cert( const char* certificate_file_name )
-// {
-//     char *certificate = NULL;
-//     certificate = malloc(MAXSIZE);
-//     sprintf(certificate,"server_certs/%s", certificate_file_name);
-
-//     FILE* fp;
-//     fp = fopen( certificate, "r" );
-//     if ( fp == 0 ) {
-//     fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
-//     exit(1);
-//     }
-
-//     RSA *rsa = 0;
-//     rsa = RSA_new();
-
-//     if ( rsa == 0 ) {
-//         fprintf( stderr, "Couldn't create new RSA priv key obj.\n" );
-//         unsigned long sslErr = ERR_get_error();
-//         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-//         fclose( fp );
-//         exit( 1 );
-//     }
-
-//     if (!PEM_read_RSA_PUBKEY(fp, &rsa, NULL, NULL))
-//     {
-//         fprintf(stderr, "Error loading RSA Public Key File.\n");
-//         ERR_print_errors_fp(stderr);
-//         exit(EXIT_FAILURE);
-//     }
-
-//     fclose( fp );
-//     return rsa;
-// }
+    fclose( fp );
+    return rsa;
+}
 
 /* store signature to file */
 int writeSig(unsigned char *sig, char *sig_name){
@@ -448,7 +387,7 @@ unsigned char * readSig(unsigned char *sig, char *sig_name){
     fp = fopen(sig_name,"r"); /* write to file or create a file if it does not exist.*/ 
     if ( fp == 0 ) {
         fprintf( stderr, "Couldn't open signature file: '%s'. %s\n",sig_name, strerror(errno) );
-        exit(1);
+        return (unsigned char *)' ';
     }
 
     /* get the file size */
@@ -474,20 +413,79 @@ unsigned char * readSig(unsigned char *sig, char *sig_name){
     return sig;
 }
 
-EVP_PKEY* get_rsa_pub_key_from_cert(const char *cert_file_name) {
-    FILE *fp;
-    
-    if (!(fp = fopen(cert_file_name, "r"))) {
-        perror("fopen");
-        exit(EXIT_FAILURE);
+/* Get signature length, used part of the formal code 
+int sigLength(char *rsaprivKeyPath, const char *clearText){
+    EVP_PKEY *evpKey;
+    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
     }
-    X509 *certificate_struct = PEM_read_X509(fp, NULL, NULL, NULL);
-    EVP_PKEY *pubkey = X509_get_pubkey(certificate_struct);
-    return pubkey;
+    RSA *rsa;
+    unsigned char *md5Value1 = NULL;
+    md5Value1 = malloc(MD5_DIGEST_LENGTH);
+    hashFile(md5Value1, clearText);
+    //printf("MD5:");
+    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value1[i]);
+    //printf("\n");
+    // get private key file 
+    rsa = getRsaPubFp( rsaprivKeyPath );
+    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    //create EVP_CTX 
+    EVP_MD_CTX *evp_ctx;
+    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+        fprintf( stderr, "Couldn't create EVP context.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+     
+    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
+        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+     
+    if ( EVP_SignUpdate( evp_ctx, (const char *)md5Value1, sizeof(md5Value1) ) == 0 ) {
+        fprintf( stderr, "Couldn't calculate hash of message.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+
+    unsigned char *sig1 = NULL;
+    unsigned int sigLen = 0;
+    //memset(sig, 0, MAXSIZE+1024);
+    sig1 = malloc(EVP_PKEY_size(evpKey));
+    sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
+    // check sig 
+    if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
+        fprintf( stderr, "Couldn't calculate signature.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
+    EVP_MD_CTX_destroy( evp_ctx );
+    RSA_free( rsa );
+    EVP_PKEY_free( evpKey );
+    ERR_free_strings();
+    free(md5Value1);
+    free(sig1);
+    return sigLen;
 }
+*/
 
 /* Verify file with certain certificate 
  * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
+ * http://stackoverflow.com/questions/15032338/extract-public-key-of-a-der-encoded-certificate-in-c
  */
 int verifySig(char *rsaprivKeyPath, const char *clearText){
     char *sig_name = NULL;
@@ -495,45 +493,58 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
-    RSA *rsa;
-    unsigned char *sha_val = NULL;
-    sha_val = malloc(SHA_DIGEST_LENGTH);
-    hashFile(sha_val, clearText);
-    printf("SHA:");
-    for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", sha_val[i]);
+    //RSA *rsa;
+    unsigned char *md5Value = NULL;
+    md5Value = malloc(MD5_DIGEST_LENGTH);
+    hashFile(md5Value, clearText);
+    printf("MD5:");
+    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
     printf("\n");
-    //printf("Incorrect MD5: %s\n", sha_val);
-    // if ( (evpKey = EVP_PKEY_new()) == 0 ) {
-    //     fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
-    //     unsigned long sslErr = ERR_get_error();
-    //     if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-    //     exit(1);
-    // }
-    evpKey = get_rsa_pub_key_from_cert(rsaprivKeyPath);
+    //printf("Incorrect MD5: %s\n", md5Value);
+    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+        unsigned long sslErr = ERR_get_error();
+        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+        exit(1);
+    }
 
     /* get private key file */
-    // rsa = getRsaPubFp( rsaprivKeyPath );
-    rsa = EVP_PKEY_get1_RSA(evpKey);
+    //rsa = getRsaPubFp( rsaprivKeyPath );
     int vsigLen=128;
     //int vsigLen = sigLength(rsaprivKeyPath,clearText);
     int vr;
     unsigned char *sig2 = NULL;
-    sig2 = readSig(sig2, sig_name);
+    if((sig2 = readSig(sig2, sig_name)) == (unsigned char *)' '){
+        return 1;
+    }
     for(int i = 0; i < vsigLen; i++) printf("%02x", sig2[i]);
         printf("\n");
     printf( "Length: '%i'\n", vsigLen );
-    //printf("verify : %s\n length:%i\n",sig2,vsigLen);
-    char *certificate = malloc(MAXSIZE);
-    strcpy(certificate,rsaprivKeyPath);
-    sprintf(rsaprivKeyPath,"client_certs/%s", certificate);
     //printf("%s\n",certificate);
     //printf("%s\n",rsaprivKeyPath);
+
+    /*****************************************************/
+
+    char *certificate = NULL;
+    certificate = malloc(MAXSIZE);
+    sprintf(certificate,"server_certs/%s", rsaprivKeyPath);
+
+    FILE* fp;
+    fp = fopen( certificate, "r" );
+    if ( fp == 0 ) {
+    fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
+    exit(1);
+    }
+    X509 * xcert = PEM_read_X509(fp, NULL, NULL, NULL);
+    evpKey = X509_get_pubkey(xcert);
+    /*
     if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
         fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
         exit(1);
     }
+    */
 
     /*create evp_ctx */
     EVP_MD_CTX *evp_ctx;
@@ -552,7 +563,7 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
         exit(1);
     }
 
-    if(!EVP_VerifyUpdate( evp_ctx, (const char *)sha_val, sizeof(sha_val))){
+    if(!EVP_VerifyUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value))){
 
                printf("EVP_VerifyUpdate error. \n");
 
@@ -578,86 +589,44 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
         printf("failed\n");
     }
     EVP_MD_CTX_destroy( evp_ctx );
-    RSA_free( rsa );
+    //RSA_free( rsa );
     EVP_PKEY_free( evpKey );
     ERR_free_strings();
-    free(sha_val);
+    free(md5Value);
     free(sig2);
     return 0;
 }
 
 /* vouch file */
 int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
-    EVP_PKEY *evpKey;
-    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
-        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    RSA *rsa;
-    unsigned char *sha_val = NULL;
-    sha_val = malloc(SHA_DIGEST_LENGTH);
-    hashFile(sha_val, clearText);
-    printf("MD5:");
-    for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", sha_val[i]);
-    printf("\n");
-    //printf("%i\n",sizeof(sha_val));
-    //printf("%i\n",strlen(sha_val));
-    /* get private key file */
-    rsa = getRsaFp( rsaprivKeyPath );
-    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
-        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+    int num;
+    unsigned char *md5Value = NULL;
+    md5Value = malloc(MD5_DIGEST_LENGTH);
+    hashFile(md5Value, clearText);
+    unsigned char *sig = NULL;
+    sig = malloc(128);
+    sig[MAXSIZE] = (unsigned char) "\0";
+    //printf("MD5:");
+    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    //printf("\n");
+    SSL_write(ssl,md5Value,sizeof(md5Value)*2);
+    num = SSL_read(ssl, sig, 128);
+    if ( num <= 0 )
+    {
+            printf("Either Connection Closed or Error\n");
+            //Break from the While
+            exit(EXIT_FAILURE);
     }
 
-    /* create EVP_CTX */
-    EVP_MD_CTX *evp_ctx;
-    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
-        fprintf( stderr, "Couldn't create EVP context.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-     
-    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
-        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-     
-    if ( EVP_SignUpdate( evp_ctx, (const char *)sha_val, sizeof(sha_val) ) == 0 ) {
-        fprintf( stderr, "Couldn't calculate hash of message.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-
-    unsigned char *sig1 = NULL;
-    unsigned int sigLen = 0;
-    //memset(sig, 0, MAXSIZE+1024);
-    sig1 = malloc(EVP_PKEY_size(evpKey));
-    sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
-    /* check sig */
-    if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
-        fprintf( stderr, "Couldn't calculate signature.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
-    for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig1[i]);
-        printf("\n");
-    printf( "Length: '%i'\n", sigLen );
+    //for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig[i]);
+    //    printf("\n");
+    //printf( "Length: '%i'\n", sigLen );
     int ws = 0;
     char *sig_name = NULL;
     //memset(sig_name, 0, MAXSIZE);
     sig_name = malloc(MAXSIZE);
     sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
-    ws = writeSig(sig1,sig_name);
+    ws = writeSig(sig,sig_name);
     if(ws != 0){
         fprintf( stderr, "Couldn't write signature to file.\n" );
         exit(1);
@@ -665,13 +634,9 @@ int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
     else{
         printf("Signature file successfully written : %s\n", sig_name);
     }
-    EVP_MD_CTX_destroy( evp_ctx );
-    RSA_free( rsa );
-    EVP_PKEY_free( evpKey );
-    ERR_free_strings();
     SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
-    free(sha_val);
-    free(sig1);
+    free(md5Value);
+    free(sig);
     return 0;
 }
 
@@ -681,7 +646,7 @@ int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
 int hashFile(unsigned char* c, const char *fileName){
     char *filename= (char *)fileName;
     FILE *fp = fopen (filename, "rb");
-    SHA_CTX sha_ctx;
+    MD5_CTX mdContext;
     int bytes;
     unsigned char data[1024];
 
@@ -690,11 +655,11 @@ int hashFile(unsigned char* c, const char *fileName){
         exit(EXIT_FAILURE);
     }
 
-    SHA1_Init (&sha_ctx);
+    MD5_Init (&mdContext);
     while ((bytes = fread (data, 1, 1024, fp)) != 0)
-    SHA1_Update (&sha_ctx, data, bytes);
-    SHA1_Final (c,&sha_ctx);
-    //for(i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", c[i]);
+    MD5_Update (&mdContext, data, bytes);
+    MD5_Final (c,&mdContext);
+    //for(i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", c[i]);
     //printf (" %s\n", filename);
     fclose (fp);
     return 0;

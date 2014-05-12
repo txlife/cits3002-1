@@ -28,7 +28,6 @@ int main(int argc, char *argv[])
     int vouch_flag = 0;
     int verify_flag = 0;
     int c;
-    int circ = 0;
     opterr = 0;
 
     /**
@@ -40,7 +39,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:lf:v:y:c:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lf:v:y:")) != -1) {
         switch(c) {
             case 'h':
                 hostname = optarg;
@@ -68,13 +67,6 @@ int main(int argc, char *argv[])
                 file_name = argv[optind];
                 certificate = argv[++optind];
                 break;
-            case 'c':
-                if (isdigit(*optarg)) {
-                    circ = atoi(optarg);
-                } else {
-                    fprintf(stderr, "Argument to -c invalid, please use number\n");
-                    exit(EXIT_FAILURE);
-                }
             default:
                 fprintf(stderr, "Flag not recognized.\n");
                 exit(EXIT_FAILURE);
@@ -160,144 +152,214 @@ int main(int argc, char *argv[])
     }
 
     /* Start Data Processing */
-    /**Sending File **/
-    if (send_flag) {
-        char client_dir[] = "client_files";
-        // printf("%s\n", strcat(client_dir, file_name));
-        char target[1024];
-        sprintf(target, "%s/%s", client_dir, file_name);
-        printf("%s\n", target);
-        FILE *fp;
-        if ((fp = fopen(target, "r"))){
+	while(1) {
+        //printf("Client: Enter Data for Server:\n");
+        // fgets(buffer,MAXSIZE-1,stdin);
+	    /**Sending File **/
+        if (send_flag) {
+            char client_dir[] = "client_files";
+            // printf("%s\n", strcat(client_dir, file_name));
+            char target[1024];
+            sprintf(target, "%s/%s", client_dir, file_name);
+            printf("%s\n", target);
+            FILE *fp;
+            if ((fp = fopen(target, "r"))){
+                header h;
+                h.action = ADD_FILE;
+                h.file_size = get_file_size(fp);
+                h.file_name = file_name;
+                h.certificate = " ";
+                send_header(ssl, h);
+                send_file(ssl, fp);
+            } else {
+                perror("fopen");
+                exit(EXIT_FAILURE);
+            }
+            break;
+        } else if (fetch_flag) {
+            header h_send;
+            h_send.action = FETCH_FILE;
+            h_send.file_name = file_name;
+            h_send.file_size = -1;
+            h_send.certificate = " ";
+            header h_recv;
+            send_header(ssl, h_send);
+            char head_buf[HEADER_SIZE];
+            int len = HEADER_SIZE;
+            // get header from server with file size
+            if (recv_all(ssl, (unsigned char *)head_buf, &len) == -1) {
+                perror("recv");
+                exit(EXIT_FAILURE);
+            }
+            if (len < HEADER_SIZE) {
+                fprintf(stderr, "[CLIENT] Did not receive full header\n");
+                exit(EXIT_FAILURE);
+            }     
+            if (unpack_header_string(head_buf, &h_recv) == -1) {
+                fprintf(stderr, "[CLIENT] Could not unpack header information from client\n");
+                exit(EXIT_FAILURE);
+            }
+            char *client_dir = "client_files";
+            char target[1024];
+            sprintf(target,"%s/%s", client_dir, h_recv.file_name);            
+            printf("Here\n");
+            receive_file(ssl, target, h_recv.file_size);
+            break;
+        }
+	
+	    /** List Files **/
+	    else if(list_flag){
             header h;
-            h.action = ADD_FILE;
-            h.file_size = get_file_size(fp);
-            h.file_name = file_name;
+            h.action = LIST_FILE;
+            h.file_size = 0;
+            h.file_name = " ";
             h.certificate = " ";
-            h.circ = circ;
             send_header(ssl, h);
-            send_file(ssl, fp);
-        } else {
-            perror("fopen");
-            exit(EXIT_FAILURE);
+        	while(1){
+        		memset(buffer, 0, sizeof(buffer));
+        		//num = recv(socket_fd, buffer, sizeof(buffer),0);
+                num = SSL_read(ssl, buffer, sizeof(buffer));
+				if ( num <= 0 )
+				{
+						printf("Either Connection Closed or Error\n");
+						//Break from the While
+						break;
+				}
+
+				buff[num] = '\0';
+				printf("%s\n",buffer);
+        	}
+        	break;
         }
-    } else if (fetch_flag) {
-        header h_send;
-        h_send.action = FETCH_FILE;
-        h_send.file_name = file_name;
-        h_send.file_size = -1;
-        h_send.certificate = " ";
-        h_send.circ = circ;
-        header h_recv;
-        send_header(ssl, h_send);
-        char head_buf[HEADER_SIZE];
-        int len = HEADER_SIZE;
-        // get header from server with file size
-        if (recv_all(ssl, (unsigned char *)head_buf, &len) == -1) {
-            perror("recv");
-            exit(EXIT_FAILURE);
-        }
-        if (len < HEADER_SIZE) {
-            fprintf(stderr, "[CLIENT] Did not receive full header\n");
-            exit(EXIT_FAILURE);
-        }     
-        if (unpack_header_string(head_buf, &h_recv) == -1) {
-            fprintf(stderr, "[CLIENT] Could not unpack header information from client\n");
-            exit(EXIT_FAILURE);
-        }
-        char *client_dir = "client_files";
-        char target[1024];
-        sprintf(target,"%s/%s", client_dir, h_recv.file_name);            
-        printf("Here\n");
-        receive_file(ssl, target, h_recv.file_size);
-    }
 
-    /** List Files **/
-    else if(list_flag){
-        header h;
-        h.action = LIST_FILE;
-        h.file_size = 0;
-        h.file_name = " ";
-        h.certificate = " ";
-        h.circ = circ;
-        send_header(ssl, h);
-    	while(1){
-    		memset(buffer, 0, sizeof(buffer));
-    		//num = recv(socket_fd, buffer, sizeof(buffer),0);
-            num = SSL_read(ssl, buffer, sizeof(buffer));
-			if ( num <= 0 )
-			{
-					printf("Either Connection Closed or Error\n");
-					//Break from the While
-					break;
-			}
-
-			buff[num] = '\0';
-			printf("%s\n",buffer);
-    	}
-    }
-
-    /* Vouch File */
-    else if(vouch_flag){
-        header h;
-        h.action = VOUCH_FILE;
-        h.file_size = 0;
-        h.file_name = file_name;
-        // h.certificate = certificate;
-        h.certificate = certificate;
-        h.circ = circ;
-        char *rsaprivKeyPath = NULL;
-        rsaprivKeyPath = malloc(MAXSIZE);
-        sprintf( rsaprivKeyPath, "%s", h.certificate );
-        send_header(ssl, h);
-        unsigned char md5[MD5_DIGEST_LENGTH];
-        int len = MD5_DIGEST_LENGTH;
-        recv_all(ssl, md5, &len);
-        
-        if (len < MD5_DIGEST_LENGTH) {
-            perror("vouch");
-            exit(EXIT_FAILURE);
-        }
-        // vouchFile()
-        // sign hash and send back to server (with cert??)
-
-
-        // while(1){
-        //     memset(buffer, 0, sizeof(buffer));
-        //     num = SSL_read(ssl, buffer, sizeof(buffer));
-        //     if ( num <= 0 )
-        //     {
-        //             printf("Either Connection Closed or Error\n");
-        //             //Break from the While
-        //             break;
-        //     }
-
-        //     buff[num] = '\0';
-        //     printf("%s\n",buffer);
-        // }
-    }
-
-    else if (verify_flag){
-        header h;
-        h.action = VERIFY_FILE;
-        h.file_size = 0;
-        h.file_name = file_name;
-        h.certificate = certificate;
-        h.circ = circ;
-        send_header(ssl, h);
-        while(1){
-            memset(buffer, 0, sizeof(buffer));
-            //num = recv(socket_fd, buffer, sizeof(buffer),0);
-            num = SSL_read(ssl, buffer, sizeof(buffer));
+        /* Vouch File */
+        else if(vouch_flag){
+            header h;
+            h.action = VOUCH_FILE;
+            h.file_size = 0;
+            h.file_name = file_name;
+            h.certificate = certificate;
+            unsigned char *md5Value = NULL;
+            md5Value = malloc(MD5_DIGEST_LENGTH);
+            char *rsaprivKeyPath = NULL;
+            rsaprivKeyPath = malloc(MAXSIZE);
+            sprintf( rsaprivKeyPath, "%s", h.certificate );
+            send_header(ssl, h);
+            num = SSL_read(ssl, md5Value, MD5_DIGEST_LENGTH);
             if ( num <= 0 )
             {
                     printf("Either Connection Closed or Error\n");
                     //Break from the While
                     break;
             }
+            printf("MD5:");
+            for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+            printf("\n");
+            EVP_PKEY *evpKey;
+            if ( (evpKey = EVP_PKEY_new()) == 0 ) {
+                fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+ 
+            RSA *rsa;
+            rsa = getRsaFp( rsaprivKeyPath );
+            if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
+                fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
 
-            buff[num] = '\0';
-            printf("%s\n",buffer);
+            /* create EVP_CTX */
+            EVP_MD_CTX *evp_ctx;
+            if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
+                fprintf( stderr, "Couldn't create EVP context.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+             
+            if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
+                fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+             
+            if ( EVP_SignUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value) ) == 0 ) {
+                fprintf( stderr, "Couldn't calculate hash of message.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+
+            unsigned char *sig1 = NULL;
+            unsigned int sigLen = 0;
+            //memset(sig, 0, MAXSIZE+1024);
+            sig1 = malloc(EVP_PKEY_size(evpKey));
+            sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
+            /* check sig */
+            if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
+                fprintf( stderr, "Couldn't calculate signature.\n" );
+                unsigned long sslErr = ERR_get_error();
+                if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
+                exit(1);
+            }
+            printf("SIGNATURE:");
+            for(int i = 0; i < sigLen; i++) printf("%02x", sig1[i]);
+            printf("\n");
+            printf("SigLen: %i\n",strlen(sig1));
+            //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
+            SSL_write(ssl,sig1,128);
+            EVP_MD_CTX_destroy( evp_ctx );
+            RSA_free( rsa );
+            EVP_PKEY_free( evpKey );
+            ERR_free_strings();
+            free(md5Value);
+            free(sig1);
+            while(1){
+                memset(buffer, 0, sizeof(buffer));
+                //num = recv(socket_fd, buffer, sizeof(buffer),0);
+                num = SSL_read(ssl, buffer, sizeof(buffer));
+                if ( num <= 0 )
+                {
+                        printf("Either Connection Closed or Error\n");
+                        //Break from the While
+                        break;
+                }
+
+                buff[num] = '\0';
+                printf("%s\n",buffer);
+            }
+            break;
+        }
+        // vouchFile()
+        // sign hash and send back to server (with cert??)
+
+        else if (verify_flag){
+            header h;
+            h.action = VERIFY_FILE;
+            h.file_size = 0;
+            h.file_name = file_name;
+            h.certificate = certificate;
+            send_header(ssl, h);
+            while(1){
+                memset(buffer, 0, sizeof(buffer));
+                //num = recv(socket_fd, buffer, sizeof(buffer),0);
+                num = SSL_read(ssl, buffer, sizeof(buffer));
+                if ( num <= 0 )
+                {
+                        printf("Either Connection Closed or Error\n");
+                        //Break from the While
+                        break;
+                }
+
+                buff[num] = '\0';
+                printf("%s\n",buffer);
+            }
+            break;
         }
     }
     /* Close connections */
