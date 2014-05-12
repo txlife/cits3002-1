@@ -165,11 +165,19 @@ int main()
         		char **files;
         		size_t count;
         		unsigned int i;
-        		count = file_list("./", &files);
+        		count = file_list("./server_files/", &files);
         		printf("There are %zu files in the directory,transmitting file list.\n", count);
         		for (i = 0; i < count; i++) {
-        			SSL_write(ssl,files[i],strlen(files[i]));
-        			sleep(1);
+        			// SSL_write(ssl,files[i],strlen(files[i]));
+                    char send_str[MAXSIZE];
+
+                    // if (file verified)
+                    sprintf(send_str, "Verified (c = 3): %s", files[i]);
+                    // else (file not verified)
+                    // sprintf(send_str, "Not Verified (c = 3): %s", files[i]);
+
+                    send_message(ssl, send_str);
+        			// sleep(1);
         		}
         		printf("File list transmitting completed.\n");
         		close(client_fd);

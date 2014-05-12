@@ -39,6 +39,9 @@
 #define MAXSIZE 1024
 #define BACKLOG 1024
 
+#define SERVER_FILE_DIR "server_files"
+#define CLIENT_FILE_DIR "client_files"
+
 #define RSA_CLIENT_CERT       "client.pem"
 #define RSA_CLIENT_KEY  "client.pem"
  
