@@ -216,7 +216,7 @@ int main()
             send_message(ssl, (char *)md5Value);
 
             unsigned char signature[MAXSIZE];
-            printf("got here\n");
+            
             SSL_read(ssl, signature, 128);
 
             char sig_name[MAXSIZE];

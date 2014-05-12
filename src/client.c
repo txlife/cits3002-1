@@ -9,13 +9,32 @@ void shutdown_connections(SSL_CTX *ctx, SSL *ssl, int socket_fd) {
     close(socket_fd);
 }
 
+void parse_host_port(char *arg, char *hostname, int *port) {
+    char *arg_p = arg;
+    char *h_p = hostname;
+    while (*arg_p != ':' && *arg_p != '\0') {
+        *h_p = *arg_p;
+        h_p++;
+        arg_p++;
+    }
+    if (*arg_p == '\0') {
+        fprintf(stderr, "Usage: -h address:port\n");
+        exit(EXIT_FAILURE);
+    }
+    arg_p++;
+    *port = atoi(arg_p);
+}
+
 int main(int argc, char *argv[])
 {
     struct sockaddr_in server_info;
     struct hostent *he;
     int socket_fd,num;
     char buffer[1024];
-    char *hostname = NULL;
+    // char *hostname = NULL;
+    char hostname[MAXSIZE];
+    // char port_str[MAXSIZE];
+    int port_no;
     char buff[1024];
     SSL_CTX *ctx;
     SSL *ssl;
@@ -51,7 +70,9 @@ int main(int argc, char *argv[])
     while ((c = getopt(argc, argv,"h:a:lf:v:y:u:")) != -1) {
         switch(c) {
             case 'h':
-                hostname = optarg;
+                // hostname = optarg;
+                parse_host_port(optarg, hostname, &port_no);
+                printf("%s:%i\n", hostname, port_no);
                 break;
             case 'a':
                 file_name = optarg;
@@ -149,7 +170,7 @@ int main(int argc, char *argv[])
     /* Initialize Server address and port */
     memset(&server_info, 0, sizeof(server_info));
     server_info.sin_family = AF_INET;
-    server_info.sin_port = htons(PORT);
+    server_info.sin_port = htons(port_no);
     server_info.sin_addr = *((struct in_addr *)he->h_addr);
 
     /* Connect Server */
