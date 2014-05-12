@@ -8,6 +8,8 @@
 #include <getopt.h>
 #include <errno.h>
 #include <netdb.h>
+#include <ctype.h>
+#include <sys/stat.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -23,6 +25,7 @@
 #include <openssl/pem.h>
 #include <openssl/evp.h>
 #include <openssl/md5.h>
+#include <openssl/sha.h>
 
 
 /** Operation Header Action Descriptor Flag Definitions **/
@@ -54,7 +57,7 @@
 #define BLOCK_SIZE 1024
 #define HEADER_SIZE 1024
 
-#define VERIFY_CLIENT  OFF
+#define VERIFY_CLIENT  ON
 
 /**
  *	Header to send to server requesting operation. Each communication to the
@@ -69,8 +72,13 @@ typedef struct header {
 	char *file_name;
 	/* Name of certificate */
 	char *certificate;
+	/* Circumference (length) of a ring of trust */
+	int circ;
 } header;
 
+typedef struct CA {
+  char *cert_file_name;
+} CA;
 #define NUM_HEAD_FIELDS 4
 
 /**
@@ -126,6 +134,5 @@ unsigned char * 	readSig(unsigned char *, char *);
 int vouchFile 	(char *, const char *, SSL *);
 int hashFile	(unsigned char *,const char *);
 RSA* getRsaPubFp	(const char*);
-
 
 #endif

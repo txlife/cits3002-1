@@ -1,5 +1,5 @@
 CXX = gcc
- # CXX = clang
+# CXX = clang
 CFLAGS = -std=c99 -Wextra -Wno-deprecated-declarations -Wno-deprecated -Wall -Wshadow -O -pedantic
 
 SRC_DIR = ./src/

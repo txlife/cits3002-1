@@ -129,6 +129,17 @@ int main()
         		sprintf(target, "%s/%s", serv_dir, h.file_name);
         		printf("[SERVER] Adding file %s\n", target);
         		receive_file(ssl, target, h.file_size);
+                // add directory for certificates which have signed
+                // for (i.e. vouched for) this file
+                char dir_name[BLOCK_SIZE];
+                
+                sprintf(dir_name, "%s/%s_CAs", serv_dir, h.file_name);
+                
+                // if (mkdir(dir_name, S_IRWXU) < 0) {
+                //     perror("mkdir");
+                //     exit(EXIT_FAILURE);
+                // }
+                // write_cert(h.certificate);
                 close(client_fd);
                 break;
         	} else if (h.action == FETCH_FILE) {
@@ -170,12 +181,18 @@ int main()
              * https://gitorious.org/random_play/random_play/source/b9f19d4d9e8d4a9ba0ef55a6b0e2113d1c6a5587:openssl_sign.c
              */
             else if (h.action == VOUCH_FILE){
-                char *rsaprivKeyPath = NULL;
-                rsaprivKeyPath = malloc(MAXSIZE);
-                sprintf( rsaprivKeyPath, "%s", h.certificate );
+                // char *rsaprivKeyPath = NULL;
+                // rsaprivKeyPath = malloc(MAXSIZE);
+                // sprintf( rsaprivKeyPath, "%s", h.certificate );
                 //*rsaprivKeyPath = h.certificate;
                 const char *clearText = h.file_name;
-                vouchFile(rsaprivKeyPath,clearText, ssl);
+                char target[BLOCK_SIZE];
+                sprintf(target, "server_files/%s", h.file_name);
+                unsigned char *md5Value = NULL;
+                md5Value = malloc(MD5_DIGEST_LENGTH);
+                hashFile(md5Value, (const char *)target);
+                send_message(ssl, (char *)md5Value);
+                // vouchFile(rsaprivKeyPath,clearText, ssl);
                 
                 //verifySig(rsaprivKeyPath,clearText);
 
