@@ -136,7 +136,8 @@ void send_header(SSL *ssl, header h) {
         && h.action != FETCH_FILE 
         && h.action != LIST_FILE 
         && h.action != VOUCH_FILE
-		&& h.action != VERIFY_FILE) {
+		&& h.action != VERIFY_FILE
+        && h.action != UPLOAD_CERT) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }

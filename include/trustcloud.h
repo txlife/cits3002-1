@@ -34,6 +34,7 @@
 #define	LIST_FILE 2
 #define VOUCH_FILE 3
 #define VERIFY_FILE 4
+#define UPLOAD_CERT 5
 
 #define PORT 3490
 #define MAXSIZE 1024
@@ -84,9 +85,6 @@ typedef struct header {
 	int circ;
 } header;
 
-typedef struct CA {
-  char *cert_file_name;
-} CA;
 #define NUM_HEAD_FIELDS 4
 
 /**
