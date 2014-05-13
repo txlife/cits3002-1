@@ -793,7 +793,7 @@ int ringOfTrust(char *certName, int requiredCirc) {
             fclose(fp1);
             X509_free(certContext);
         }
-        if (!issuerFound) break;
+        if (!issuerFound) break; 
     }
     
     // check now if our last found cert was signed by the first cert, 
