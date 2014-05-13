@@ -1,0 +1,40 @@
+Certificate Request:
+    Data:
+        Version: 0 (0x0)
+        Subject: C=AU, ST=Some-State, O=Internet Widgits Pty Ltd
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+            RSA Public Key: (1024 bit)
+                Modulus (1024 bit):
+                    00:ad:58:7e:12:97:dd:62:cb:f3:b6:d9:b1:4f:77:
+                    51:41:1e:72:fe:44:6c:24:b3:fe:29:3f:56:7e:89:
+                    03:90:ff:23:14:a8:c6:10:f0:5f:a9:44:ff:4a:bf:
+                    7c:97:d1:4f:5a:46:55:b7:37:85:e4:4b:d1:25:e7:
+                    41:62:1f:6b:61:3f:d3:a3:03:ff:be:02:ef:fc:bd:
+                    9e:8f:ec:03:bd:c5:2b:a9:c8:d7:60:a0:22:0b:af:
+                    4c:a1:60:80:30:57:43:10:2f:4d:43:1e:7a:c9:6b:
+                    5d:11:25:7f:2e:e1:5b:ac:42:07:ab:18:6a:6f:f4:
+                    7b:88:57:74:b9:f9:bd:cc:13
+                Exponent: 65537 (0x10001)
+        Attributes:
+            a0:00
+    Signature Algorithm: sha1WithRSAEncryption
+        5d:5f:5b:10:35:40:fb:fb:b3:d4:8a:8c:02:b8:9e:8f:97:ae:
+        dc:15:0c:7c:5c:82:2e:4e:0e:62:1d:3c:e0:e7:af:17:c5:30:
+        b3:bc:91:2d:cc:52:50:39:d0:df:25:f7:e4:15:9f:e8:82:0e:
+        01:e6:f1:b8:4c:0c:96:fa:8d:98:0e:73:f9:07:f5:4a:fc:0e:
+        9c:d0:33:d2:a9:e0:e9:65:e2:94:61:9f:72:5e:59:05:34:f6:
+        be:ff:02:2e:90:5d:40:97:4e:ce:d6:54:9b:b7:84:2c:27:88:
+        13:e7:4d:7a:30:33:cd:a2:31:bb:02:ba:1b:bf:c0:9b:3d:8e:
+        90:41
+-----BEGIN CERTIFICATE REQUEST-----
+MIIBhDCB7gIBADBFMQswCQYDVQQGEwJBVTETMBEGA1UECBMKU29tZS1TdGF0ZTEh
+MB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIGfMA0GCSqGSIb3DQEB
+AQUAA4GNADCBiQKBgQCtWH4Sl91iy/O22bFPd1FBHnL+RGwks/4pP1Z+iQOQ/yMU
+qMYQ8F+pRP9Kv3yX0U9aRlW3N4XkS9El50FiH2thP9OjA/++Au/8vZ6P7AO9xSup
+yNdgoCILr0yhYIAwV0MQL01DHnrJa10RJX8u4VusQgerGGpv9HuIV3S5+b3MEwID
+AQABoAAwDQYJKoZIhvcNAQEFBQADgYEAXV9bEDVA+/uz1IqMAriej5eu3BUMfFyC
+Lk4OYh084OevF8Uws7yRLcxSUDnQ3yX35BWf6IIOAebxuEwMlvqNmA5z+Qf1SvwO
+nNAz0qng6WXilGGfcl5ZBTT2vv8CLpBdQJdOztZUm7eELCeIE+dNejAzzaIxuwK6
+G7/Amz2OkEE=
+-----END CERTIFICATE REQUEST-----

@@ -270,7 +270,7 @@ int main()
                 printf("No Issuer found\n");
             }
 
-            ringOfTrust(h.certificate, h.c);
+            ringOfTrust(h.certificate, h.circ);
         }
 
         /********** END DATA PROCESSING **************/

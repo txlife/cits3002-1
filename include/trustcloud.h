@@ -147,5 +147,5 @@ int vouchFile 	(char *, const char *, SSL *);
 int hashFile	(unsigned char *,const char *);
 RSA* getRsaPubFp	(const char*);
 int findIssuer(char *, char *);
-int ringOfTrust(char *);
+int ringOfTrust(char *, int);
 #endif
