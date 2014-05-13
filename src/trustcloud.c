@@ -300,7 +300,7 @@ RSA* getRsaFp( const char* rsaprivKeyPath )
 {
     char *certificate = NULL;
     certificate = malloc(MAXSIZE);
-    sprintf(certificate,"client_certs/%s", rsaprivKeyPath);
+    sprintf(certificate,"%s", rsaprivKeyPath);
 
     FILE* fp;
     fp = fopen( certificate, "r" );
@@ -365,7 +365,11 @@ RSA* getRsaPubFp( const char* rsaprivKeyPath )
     return rsa;
 }
 
-/* store signature to file */
+/* store signature to file 
+ *
+ *  stored sig file will have nameing convention: 
+ *              clrtextFileName_signatorysCertName.sig
+ */
 int writeSig(unsigned char *sig, char *sig_name){
     FILE *fp; 
     fp = fopen(sig_name,"w"); /* write to file or create a file if it does not exist.*/ 
@@ -486,20 +490,31 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
 */
 
 /* Verify file with certain certificate 
+ * Params: 
+ *      signatorYCertName: string name of signer's certificate
+ *      clearText:  string name of clear text file
  * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
  * http://stackoverflow.com/questions/15032338/extract-public-key-of-a-der-encoded-certificate-in-c
  */
-int verifySig(char *rsaprivKeyPath, const char *clearText){
+int verifySig(char *signatoryCertName, const char *clearText){
     char *sig_name = NULL;
     sig_name = malloc(MAXSIZE);
-    sprintf( sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR,  clearText, rsaprivKeyPath );
+    if (isNameCertFile(clearText)) {
+        sprintf( sig_name, "%s/%s_%s.sig", SERVER_CERT_DIR, clearText, signatoryCertName );
+    } else {
+        sprintf( sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearText, signatoryCertName );
+    }
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
     //RSA *rsa;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
     char clear_text_loc[MAXSIZE];
-    sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
+    if (isNameCertFile(clearText)) {
+        sprintf(clear_text_loc, "%s/%s", SERVER_CERT_DIR, clearText);
+    } else {
+        sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
+    }
     hashFile(md5Value, clear_text_loc);
     printf("MD5:");
     for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
@@ -513,9 +528,9 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     }
 
     /* get private key file */
-    //rsa = getRsaPubFp( rsaprivKeyPath );
+    //rsa = getRsaPubFp( signatoryCertName );
     int vsigLen=128;
-    //int vsigLen = sigLength(rsaprivKeyPath,clearText);
+    //int vsigLen = sigLength(signatoryCertName,clearText);
     int vr;
     unsigned char *sig2 = NULL;
     if((sig2 = readSig(sig2, sig_name)) == (unsigned char *)' '){
@@ -525,14 +540,14 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
         printf("\n");
     printf( "Length: '%i'\n", vsigLen );
     //printf("%s\n",certificate);
-    //printf("%s\n",rsaprivKeyPath);
+    //printf("%s\n",signatoryCertName);
 
     /*****************************************************/
 
     char *certificate = NULL;
     certificate = malloc(MAXSIZE);
-    sprintf(certificate,"server_certs/%s", rsaprivKeyPath);
-
+    sprintf(certificate,"%s/%s", SERVER_CERT_DIR, signatoryCertName);
+    // printf("certloc: %s\n", certificate);
     FILE* fp;
     fp = fopen( certificate, "r" );
     if ( fp == 0 ) {
@@ -540,6 +555,10 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     exit(1);
     }
     X509 * xcert = PEM_read_X509(fp, NULL, NULL, NULL);
+    if (!xcert) {
+        fprintf(stderr, "Could not read X509 from pem\n");
+        exit(EXIT_FAILURE);
+    }
     evpKey = X509_get_pubkey(xcert);
     /*
     if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
@@ -602,7 +621,7 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
 }
 
 /* vouch file */
-int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
+int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
     int num;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
@@ -629,7 +648,7 @@ int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
     char *sig_name = NULL;
     //memset(sig_name, 0, MAXSIZE);
     sig_name = malloc(MAXSIZE);
-    sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
+    sprintf( sig_name, "%s_%s.sig",  clearText, signatorysCertName);
     ws = writeSig(sig,sig_name);
     if(ws != 0){
         fprintf( stderr, "Couldn't write signature to file.\n" );
@@ -916,3 +935,15 @@ int ringOfTrust(char *certName, int requiredCirc) {
     fclose(fp);
     return result;
  }
+
+ /*
+ * Check if file name is certificate based on .pem naming convention
+ */
+int isNameCertFile(const char *name) {
+    int len = strlen(name);
+    return  !(len < 4 
+        || name[len - 1] != 'm'
+        || name[len - 2] != 'e' 
+        || name[len - 3] != 'p'
+        || name[len - 4] != '.');
+}

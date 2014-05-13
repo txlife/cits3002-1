@@ -148,4 +148,6 @@ int hashFile	(unsigned char *,const char *);
 RSA* getRsaPubFp	(const char*);
 int findIssuer(char *, char *);
 int ringOfTrust(char *, int);
+int check_if_file_exists(const char *);
+int isNameCertFile(const char *);
 #endif

@@ -251,8 +251,13 @@ int main(int argc, char *argv[])
 
     else if (up_cert_flag) { // upload public certificate to server
         char target[MAXSIZE];
-        sprintf(target, "%s/%s", CLIENT_CERT_DIR, file_name);
-        printf("%s\n", target);
+        sprintf(target, "%s/%s_crt.pem", CLIENT_CERT_DIR, file_name);
+
+        if (!check_if_file_exists(target)) {
+            printf("Can't locate cert: %s\n", target);
+            exit(EXIT_FAILURE);
+        }
+
         FILE *fp;
         if ((fp = fopen(target, "r"))){
             header h;
@@ -299,12 +304,16 @@ int main(int argc, char *argv[])
         h.action = VOUCH_FILE;
         h.file_size = 0;
         h.file_name = file_name;
-        h.certificate = certificate;
+        char *certName[MAXSIZE];
+        sprintf(certName, "%s_crt.pem", certificate);
+        h.certificate = certName;
         unsigned char *md5Value = NULL;
         md5Value = malloc(MD5_DIGEST_LENGTH);
-        char *rsaprivKeyPath = RSA_CLIENT_KEY; // client's private key file name
-        // rsaprivKeyPath = malloc(MAXSIZE);
-        // sprintf( rsaprivKeyPath, "%s", h.certificate );
+        // char *privateKeyFileName = RSA_CLIENT_KEY; // client's private key file name
+        char *privateKeyFileName[MAXSIZE];
+        sprintf(privateKeyFileName, "%s/%s_key.pem", CLIENT_CERT_DIR, certificate);
+        // privateKeyFileName = malloc(MAXSIZE);
+        // sprintf( privateKeyFileName, "%s", h.certificate );
         send_header(ssl, h);
         // get hash of file from server 
         num = SSL_read(ssl, md5Value, MD5_DIGEST_LENGTH);
@@ -329,7 +338,7 @@ int main(int argc, char *argv[])
 
         // read private key (rsa) from client's private key pem
         RSA *rsa;
-        rsa = getRsaFp( rsaprivKeyPath );
+        rsa = getRsaFp( privateKeyFileName );
         if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
             fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
             unsigned long sslErr = ERR_get_error();

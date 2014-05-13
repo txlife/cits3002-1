@@ -143,9 +143,8 @@ int main()
             close(client_fd);
             */
     	} else if (h.action == FETCH_FILE) {
-            char *serv_dir = "server_files";
             char target[BLOCK_SIZE];
-            sprintf(target, "%s/%s", serv_dir, h.file_name);
+            sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
             printf("[SERVER] Fetching file %s\n", target);
             FILE *fp;
             if (!(fp = fopen(target, "r"))) {
@@ -161,7 +160,7 @@ int main()
             send_file(ssl, fp);
         }  else if (h.action == UPLOAD_CERT) {
             char target[MAXSIZE];
-            sprintf(target, "%s/%s", SERVER_CERT_DIR, h.file_name);
+            sprintf(target, "%s/%s_crt.pem", SERVER_CERT_DIR, h.file_name);
             printf("Receiving cert and storing: %s\n", target);
             receive_file(ssl, target, h.file_size);
         }// if client requests to list files
@@ -198,18 +197,26 @@ int main()
             // rsaprivKeyPath = malloc(MAXSIZE);
             // sprintf( rsaprivKeyPath, "%s", h.certificate );
             //*rsaprivKeyPath = h.certificate;
-            const char *clearText = h.file_name;
+            const char *clearTextFileName = h.file_name;
+            int isCertFile = isNameCertFile(clearTextFileName);
             char *certificate_file_name = h.certificate;
             char cert_loc[MAXSIZE];
             sprintf(cert_loc, "%s/%s", SERVER_CERT_DIR, certificate_file_name);
+
             if (!check_if_file_exists(cert_loc)) {
                 char *message = "Unable to locate certificate on the server. Please upload using -a\n\0";
-                // send_message
+                send_message(ssl, message);
                 // should notify client here somehow
             }
 
             char target[BLOCK_SIZE];
-            sprintf(target, "server_files/%s", h.file_name);
+
+            if (isCertFile) {
+                sprintf(target, "%s/%s", SERVER_CERT_DIR, h.file_name);
+            } else {
+                sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
+            }
+
             unsigned char *md5Value = NULL;
             md5Value = malloc(MD5_DIGEST_LENGTH);
             hashFile(md5Value, (const char *)target);
@@ -220,23 +227,29 @@ int main()
             SSL_read(ssl, signature, 128);
 
             char sig_name[MAXSIZE];
-            sprintf(sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearText, certificate_file_name);
+
+            // keep certificate signatures with certificates
+            if (isCertFile) {
+                sprintf(sig_name, "%s/%s_%s.sig", SERVER_CERT_DIR, clearTextFileName, certificate_file_name);
+            } else {
+                sprintf(sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearTextFileName, certificate_file_name);
+            }
+
             printf("Sig loc: %s\n", sig_name);
             if (writeSig(signature, sig_name) != 0) {
                 fprintf(stderr, "Could not save signature file\n");
                 exit(EXIT_FAILURE);
             }
-            
-            // get encrypted hash back, then verify:
+            // get encrypted hash back, then verify:    
             //      decrypt using client's public cert
             //      check decrypted hash against original calculated md5Value
-            if (verifySig(h.certificate, clearText) != 0) {
-                // probably do something more effective here, like 
-                // remove the file or the signature or something.
-                // Guess the file is just not protected by this cert
-                fprintf(stderr,"Verification failed after vouching\n");
-                // exit(EXIT_FAILURE);
-            }
+            // if (verifySig(h.certificate, clearTextFileName) != 0) {
+            //     // probably do something more effective here, like 
+            //     // remove the file or the signature or something.
+            //     // Guess the file is just not protected by this cert
+            //     fprintf(stderr,"Verification failed after vouching\n");
+            //     // exit(EXIT_FAILURE);
+            // }
 
             // recv_all(ssl, &signature);
             // vouchFile(rsaprivKeyPath,clearText, ssl);
@@ -245,14 +258,13 @@ int main()
         }
 
         else if (h.action == VERIFY_FILE){
-            char *rsaprivKeyPath = NULL;
-            rsaprivKeyPath = malloc(MAXSIZE);
-            sprintf( rsaprivKeyPath, "%s", h.certificate );
-            //*rsaprivKeyPath = h.certificate;
+            char signatoryCertName[MAXSIZE];
+            sprintf( signatoryCertName, "%s_crt.pem", h.certificate );
+            //*signatoryCertName = h.certificate;
             const char *clearText = h.file_name;
-            //vouchFile(rsaprivKeyPath,clearText, ssl);
+            //vouchFile(signatoryCertName,clearText, ssl);
             
-            if(verifySig(rsaprivKeyPath,clearText) == 1){
+            if(verifySig(signatoryCertName,clearText) == 1){
                 printf("Verify failed\n");
             }
 
