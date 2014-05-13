@@ -138,7 +138,8 @@ void send_header(SSL *ssl, header h) {
         && h.action != VOUCH_FILE
 		&& h.action != VERIFY_FILE
 		&& h.action != UPLOAD_CERT
-        && h.action != FIND_ISSUER ) {
+        && h.action != FIND_ISSUER 
+        && h.action != TEST_RINGOFTRUST) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
@@ -534,7 +535,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
     int vr;
     unsigned char *sig2 = NULL;
     if((sig2 = readSig(sig2, sig_name)) == (unsigned char *)' '){
-        return 1;
+        return 0;
     }
     for(int i = 0; i < vsigLen; i++) printf("%02x", sig2[i]);
         printf("\n");
@@ -617,7 +618,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
     ERR_free_strings();
     free(md5Value);
     free(sig2);
-    return 0;
+    return 1;
 }
 
 /* vouch file */
@@ -698,12 +699,13 @@ int check_if_file_exists(const char *file_name) {
 int ringOfTrust(char *certName, int requiredCirc) {
     // build list of certificates in server
     struct dirent *dp;
+    struct dirent *_dp;
     DIR *dfd;
     DIR *_dfd;
 
-    char *dir ;
-    dir = malloc(MAXSIZE);
-    sprintf(dir, SERVER_CERT_DIR);
+    char *dir = SERVER_CERT_DIR;
+    // dir = malloc(MAXSIZE);
+    // sprintf(dir, SERVER_CERT_DIR);
 
     printf("searching %s\n", dir);
     if ((dfd = opendir(dir)) == NULL)
@@ -719,7 +721,6 @@ int ringOfTrust(char *certName, int requiredCirc) {
     }
 
     int fileCount = 0;
-    struct dirent *_dp = dp;
     // first get file count
     while ((_dp = readdir(_dfd)) != NULL) {
         if (_dp->d_type == DT_REG) {
@@ -733,13 +734,18 @@ int ringOfTrust(char *certName, int requiredCirc) {
         }
     }
 
+    // list of .pem files (certificates) in SERVER_CERT_DIR
     char **fileList;
     fileList = malloc(sizeof(char *) * fileCount);
+
+    // record if certificate already exists in ring - it can't be used
+    //      more than once for a valid ring
     int certUsed[fileCount];
     int i;
     int certInd = 0;
     int ringCirc = 0;
 
+    // init certUsed
     for (i = 0; i < fileCount; i++) {
         certUsed[i] = 0;
     }
@@ -786,7 +792,7 @@ int ringOfTrust(char *certName, int requiredCirc) {
             return 1;
         }
         
-        cert = PEM_read_X509(fp, NULL, NULL, NULL);
+        // cert = PEM_read_X509(fp, NULL, NULL, NULL);
 
         for (i = 0; i < fileCount; i++) {
             if (certUsed[i]) continue;
@@ -796,21 +802,22 @@ int ringOfTrust(char *certName, int requiredCirc) {
                 return 1;
             }
         
-            X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
+            // X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
             //once a cert is matched, return it
             if (X509_check_issued(certContext, cert) == X509_V_OK) {
+            // if (verifySig(fileList[i], curCert)) {
                 // found issuer
                 certUsed[i] = 1;
                 certInd = i;
                 curCert = fileList[i];
                 ringCirc++;
-                X509_free(certContext);
+                // X509_free(certContext);
                 issuerFound = 1;
                 break;
             } 
             
             fclose(fp1);
-            X509_free(certContext);
+            // X509_free(certContext);
         }
         if (!issuerFound) break; 
     }

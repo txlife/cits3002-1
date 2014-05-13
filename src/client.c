@@ -55,6 +55,7 @@ int main(int argc, char *argv[])
     int verify_flag = 0;
     int up_cert_flag = 0;
     int findissuer_flag = 0;
+    int test_ringoftrust = 0; // remove later
     int c;
     int circumference = 0;
     opterr = 0;
@@ -68,7 +69,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:lf:v:y:i:u:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lf:v:y:i:u:t:")) != -1) {
         switch(c) {
             case 'h':
                 // hostname = optarg;
@@ -111,6 +112,10 @@ int main(int argc, char *argv[])
                 break;
             case 'i':
                 findissuer_flag = 1;
+                certificate = optarg;
+                break;
+            case 't':
+                test_ringoftrust = 1;
                 certificate = optarg;
                 break;
             default:
@@ -445,6 +450,15 @@ int main(int argc, char *argv[])
         h.file_size = 0;
         h.file_name = " ";
         h.certificate = certificate;
+        send_header(ssl, h);
+    }  else if (test_ringoftrust) {
+        header h;
+        h.action = TEST_RINGOFTRUST;
+        h.file_name = " ";
+        char certName[MAXSIZE];
+        sprintf(certName, "%s_crt.pem", certificate);
+        h.certificate = certName;
+        h.circ = circumference;
         send_header(ssl, h);
     }
     /* Close connections */

@@ -177,6 +177,7 @@ int main()
                 // get ring of trust circumference for file[i]
 
                 // if (ring-of-trust(file[i]) >= h.circ) // file verified and protected
+                // int minRing = ringOfTrust(file[i])
                 sprintf(send_str, "Verified (c = 3): %s", files[i]);
                 // else // file not verified
                 // sprintf(send_str, "Not Verified (c = 3): %s", files[i]);
@@ -264,7 +265,7 @@ int main()
             const char *clearText = h.file_name;
             //vouchFile(signatoryCertName,clearText, ssl);
             
-            if(verifySig(signatoryCertName,clearText) == 1){
+            if(!verifySig(signatoryCertName,clearText)){
                 printf("Verify failed\n");
             }
 
@@ -282,7 +283,9 @@ int main()
                 printf("No Issuer found\n");
             }
 
-            ringOfTrust(h.certificate, h.circ);
+        } else if (h.action == TEST_RINGOFTRUST) {
+            int rot = ringOfTrust(h.certificate, h.circ);
+            printf("%i\n", rot);
         }
 
         /********** END DATA PROCESSING **************/
