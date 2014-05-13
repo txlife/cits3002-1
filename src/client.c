@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
     int vouch_flag = 0;
     int verify_flag = 0;
     int up_cert_flag = 0;
+    int findissuer_flag = 0;
     int c;
     int circumference = 0;
     opterr = 0;
@@ -67,7 +68,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:lf:v:y:u:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lf:v:y:i:u:")) != -1) {
         switch(c) {
             case 'h':
                 // hostname = optarg;
@@ -107,6 +108,10 @@ int main(int argc, char *argv[])
             case 'u':
                 file_name = optarg;
                 up_cert_flag = 1;
+                break;
+            case 'i':
+                findissuer_flag = 1;
+                certificate = optarg;
                 break;
             default:
                 fprintf(stderr, "Flag not recognized.\n");
@@ -425,6 +430,13 @@ int main(int argc, char *argv[])
             buff[num] = '\0';
             printf("%s\n",buffer);
         }
+    }  else if (findissuer_flag){
+        header h;
+        h.action = FIND_ISSUER;
+        h.file_size = 0;
+        h.file_name = " ";
+        h.certificate = certificate;
+        send_header(ssl, h);
     }
     /* Close connections */
     shutdown_connections(ctx, ssl, socket_fd);

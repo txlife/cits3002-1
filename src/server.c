@@ -256,6 +256,21 @@ int main()
                 printf("Verify failed\n");
             }
 
+        } else if (h.action == FIND_ISSUER){
+            char certPath[MAXSIZE];
+            char issuer[MAXSIZE];
+            sprintf( certPath, "%s", h.certificate );
+            int result = 0;
+            //*rsaprivKeyPath = h.certificate;
+            
+            if( (result = findIssuer(issuer, certPath)) == 0){
+                printf("Find Issuer: %s\n", issuer);
+            }
+            else if(result == 2){
+                printf("No Issuer found\n");
+            }
+
+            ringOfTrust(h.certificate, h.c);
         }
 
         /********** END DATA PROCESSING **************/
