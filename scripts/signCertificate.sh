@@ -1,13 +1,11 @@
 #!/bin/bash
-if [[ $# -ne 1 ]]; then
-  echo "Usage: signCertificate.sh sign_list_csv_file"
+if [[ $# -ne 3 ]]; then
+  echo "Usage: signCertificate.sh CA_num CA_key_num client_csr_num"
   exit
 fi
 
-while IFS=, read CA ss_cert
-do
-  touch index.txt
-  rm index.txt
-  touch index.txt
-  openssl ca -batch -config openssl.conf -ss_cert $ss_cert\_crt.pem  -cert $CA\_crt.pem -keyfile $CA\_key.pem -out ./signed/$ss_cert\_crt.pem
-done < $1
+touch index.txt
+rm index.txt
+touch index.txt
+#openssl ca -batch -config openssl.conf -in $3_csr.pem  -cert $1_crt.pem -keyfile $2_key.pem -out ./signed/$3_crt.pem
+openssl x509 -req -in $3_csr.pem -md5 -CA $1_crt.pem -CAkey $2_key.pem -CAcreateserial -out ./signed/$3_crt.pem

@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
      *      -u certificate  upload a certificate to the trustcloud server
      *      -v filename certificate vouch for the authenticity of an existing file in the trustcloud server using the indicated certificate
      */
-    while ((c = getopt(argc, argv,"h:a:lf:v:y:i:u:t:")) != -1) {
+    while ((c = getopt(argc, argv,"h:a:lf:v:y:i:u:t:c:")) != -1) {
         switch(c) {
             case 'h':
                 // hostname = optarg;
@@ -247,7 +247,6 @@ int main(int argc, char *argv[])
             fprintf(stderr, "[CLIENT] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
-        char *client_dir = "client_files";
         char target[MAXSIZE];
         sprintf(target,"%s/%s", CLIENT_FILE_DIR, h_recv.file_name);            
         printf("Here\n");
@@ -309,13 +308,13 @@ int main(int argc, char *argv[])
         h.action = VOUCH_FILE;
         h.file_size = 0;
         h.file_name = file_name;
-        char *certName[MAXSIZE];
+        char certName[MAXSIZE];
         sprintf(certName, "%s_crt.pem", certificate);
         h.certificate = certName;
         unsigned char *md5Value = NULL;
         md5Value = malloc(MD5_DIGEST_LENGTH);
         // char *privateKeyFileName = RSA_CLIENT_KEY; // client's private key file name
-        char *privateKeyFileName[MAXSIZE];
+        char privateKeyFileName[MAXSIZE];
         sprintf(privateKeyFileName, "%s/%s_key.pem", CLIENT_CERT_DIR, certificate);
         // privateKeyFileName = malloc(MAXSIZE);
         // sprintf( privateKeyFileName, "%s", h.certificate );
@@ -393,7 +392,7 @@ int main(int argc, char *argv[])
             exit(1);
         }
         printf("SIGNATURE:");
-        for(int i = 0; i < sigLen; i++) printf("%02x", sig1[i]);
+        for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig1[i]);
         printf("\n");
         printf("SigLen: %i\n", (int)sigLen);
         //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);

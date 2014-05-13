@@ -711,13 +711,13 @@ int ringOfTrust(char *certName, int requiredCirc) {
     if ((dfd = opendir(dir)) == NULL)
     {
         fprintf(stderr, "Can't open %s\n", dir);
-        return 1;
+        return -1;
     }
 
     if ((_dfd = opendir(dir)) == NULL)
     {
         fprintf(stderr, "Can't open %s\n", dir);
-        return 1;
+        return -1;
     }
 
     int fileCount = 0;
@@ -770,7 +770,9 @@ int ringOfTrust(char *certName, int requiredCirc) {
             certInd = i;
         }
         fileList[i] = malloc(sizeof(char) * dp->d_namlen + 1);
-        strcpy(fileList[i], dp->d_name);
+        char target[MAXSIZE];
+        sprintf(target, "%s/%s", SERVER_CERT_DIR, dp->d_name);
+        strcpy(fileList[i], target);
         i++;
     }
     printf("Certs: \n");
@@ -789,56 +791,61 @@ int ringOfTrust(char *certName, int requiredCirc) {
         FILE *fp = fopen(curCert, "r");
         if (!fp) {
             fprintf(stderr, "unable to open: %s\n", curCert);
-            return 1;
+            return -1;
         }
         
-        // cert = PEM_read_X509(fp, NULL, NULL, NULL);
+        cert = PEM_read_X509(fp, NULL, NULL, NULL);
 
         for (i = 0; i < fileCount; i++) {
             if (certUsed[i]) continue;
             FILE *fp1 = fopen(fileList[i], "r");
             if (!fp1) {
                 fprintf(stderr, "unable to open: %s\n", fileList[i]);
-                return 1;
+                return -1;
             }
         
-            // X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
+            X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
             //once a cert is matched, return it
             if (X509_check_issued(certContext, cert) == X509_V_OK) {
-            // if (verifySig(fileList[i], curCert)) {
                 // found issuer
+                printf("found issuer: %s -> %s\n", fileList[i], curCert);
                 certUsed[i] = 1;
                 certInd = i;
                 curCert = fileList[i];
                 ringCirc++;
-                // X509_free(certContext);
+                X509_free(certContext);
                 issuerFound = 1;
                 break;
             } 
             
             fclose(fp1);
-            // X509_free(certContext);
+            X509_free(certContext);
         }
         if (!issuerFound) break; 
     }
     
     // check now if our last found cert was signed by the first cert, 
     // completing the ring of trust
-    FILE *startfp = fopen(certName, "r");
+    char startCertLoc[MAXSIZE];
+    sprintf(startCertLoc, "%s/%s", SERVER_CERT_DIR, certName);
+    // char finalCertLoc[MAXSIZE];
+    // sprintf(finalCertLoc, "%s/%s", SERVER_CERT_DIR, curCert);
+    FILE *startfp = fopen(startCertLoc, "r");
     FILE *finalfp = fopen(curCert, "r");
     if (!startfp) {
-        fprintf(stderr, "unable to open: %s\n", certName);
-        return 1;
+        fprintf(stderr, "unable to open startfp: %s\n", startCertLoc);
+        return -1;
     }
     if (!finalfp) {
         fprintf(stderr, "unable to open: %s\n", curCert);
-        return 1;
+        return -1;
     }
     X509 *startCert = PEM_read_X509(startfp, NULL, NULL, NULL);
     X509 *finalCtx = PEM_read_X509(finalfp, NULL, NULL, NULL);
 
     if (X509_check_issued(startCert, finalCtx) == X509_V_OK) {
         // we have a ring
+        printf("%s -> %s\n", startCertLoc, curCert);
         ringCirc++;
     } else ringCirc = -1;
 

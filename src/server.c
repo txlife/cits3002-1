@@ -285,7 +285,32 @@ int main()
 
         } else if (h.action == TEST_RINGOFTRUST) {
             int rot = ringOfTrust(h.certificate, h.circ);
-            printf("%i\n", rot);
+            if (rot >= 0)
+                printf("ring of trsut leve: %i\n", rot);
+            else 
+                printf("Something went wrong with ROT\n");
+            // FILE *fp1, *fp2;
+            // // fp1 = fopen("scripts/1_crt.pem", "r");
+            // fp1 = fopen("server_certs/3_crt.pem", "r");
+            // // fp2 = fopen("scripts/signed/4_crt.pem", "r");
+            // fp2 = fopen("server_certs/4_crt.pem", "r");
+            // X509 *x1, *x2;
+
+            // x1 = PEM_read_X509(fp1, NULL, NULL, NULL);
+            // x2 = PEM_read_X509(fp2, NULL, NULL, NULL);
+
+            // if (!x1) {
+            //     printf("Couldn't get x1\n");
+            //     exit(EXIT_FAILURE);
+            // } else if (!x2) {
+            //     printf("Coudlnt' get x2\n");
+            //     exit(EXIT_FAILURE);
+            // }
+            // printf("%i\n", X509_check_issued(x1, x2));
+            // if (X509_check_issued(x1, x2) == X509_V_OK) {
+            //     printf("x1 signed x2\n");
+            // } else 
+            //     printf("Not verified\n");
         }
 
         /********** END DATA PROCESSING **************/
