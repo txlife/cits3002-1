@@ -753,7 +753,9 @@ int ringOfTrust(char *certName, int requiredCirc) {
         if (certUsed[i]) continue;
         printf("ent: %s\n", fileList[i]);
     }
+
     char *curCert;
+    // search for ring
     while (ringCirc < requiredCirc - 1 && ringCirc < fileCount) {
         curCert = fileList[certInd];
 
@@ -790,6 +792,9 @@ int ringOfTrust(char *certName, int requiredCirc) {
             X509_free(certContext);
         }
     }
+    
+    // check now if our last found cert was signed by the first cert, 
+    // completing the ring of trust
     FILE *startfp = fopen(certName, "r");
     FILE *finalfp = fopen(curCert, "r");
     if (!startfp) {
