@@ -287,11 +287,11 @@ int main()
             }
 
         } else if (h.action == TEST_RINGOFTRUST) {
-            int rot = ringOfTrust(h.certificate, h.circ);
-            if (rot >= 0)
-                printf("ring of trsut leve: %i\n", rot);
-            else 
-                printf("Something went wrong with ROT\n");
+            // int rot = ringOfTrust(h.certificate, h.circ);
+            // if (rot >= 0)
+                // printf("ring of trsut leve: %i\n", rot);
+            // else 
+                // printf("Something went wrong with ROT\n");
             // FILE *fp1, *fp2;
             // // fp1 = fopen("scripts/1_crt.pem", "r");
             // fp1 = fopen("server_certs/3_crt.pem", "r");
