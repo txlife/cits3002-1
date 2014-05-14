@@ -854,6 +854,60 @@ int ringOfTrust(char *certName, int requiredCirc) {
     return ringCirc;
 }
 
+/**
+ * Check if this sig file is for your clear text file (filename)
+ *     naming convention is: filename_signingCertName.sig
+ * @param  fileName [description]
+ * @param  sigName  [description]
+ * @return          [description]
+ */
+int checkSigFileName(char *fileName, char *sigFileName) {
+    char fileNamePortionOfSigName[MAXSIZE];
+    strncpy(fileNamePortionOfSigName, sigFileName, strlen(fileName));
+    if (strcmp(fileName, fileNamePortionOfSigName) == 0) return 1;
+    else return 0;
+}
+
+int sigRingOfTrust(char *startCertName, int requiredCirc) {
+    // build list of certificates in server
+    struct dirent *dp;
+    struct dirent *_dp;
+    DIR *dfd;
+    DIR *_dfd;
+
+    char *dir = SERVER_CERT_DIR;
+    // dir = malloc(MAXSIZE);
+    // sprintf(dir, SERVER_CERT_DIR);
+
+    printf("searching %s\n", dir);
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return -1;
+    }
+
+    if ((_dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return -1;
+    }
+
+    int fileCount = 0;
+    // first get file count
+    while ((_dp = readdir(_dfd)) != NULL) {
+        if (_dp->d_type == DT_REG) {
+            if(!isNameSigFile(_dp->d_name)) { // skip files that are not sigs
+                continue;
+            }
+            fileCount++;
+        }
+    }
+
+    int signedByGraph[fileCount][fileCount];
+
+
+}
+
 /* Find if a ring of trust exist
  * https://zakird.com/2013/10/13/certificate-parsing-with-openssl/
  * http://stackoverflow.com/questions/1271064/how-do-i-loop-through-all-files-in-a-folder-using-c
@@ -959,5 +1013,17 @@ int isNameCertFile(const char *name) {
         || name[len - 1] != 'm'
         || name[len - 2] != 'e' 
         || name[len - 3] != 'p'
+        || name[len - 4] != '.');
+}
+
+ /*
+ * Check if file name is signature based on .sig naming convention
+ */
+int isNameSigFile(const char *name) {
+    int len = strlen(name);
+    return  !(len < 4 
+        || name[len - 1] != 'g'
+        || name[len - 2] != 'i' 
+        || name[len - 3] != 's'
         || name[len - 4] != '.');
 }

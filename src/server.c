@@ -198,14 +198,17 @@ int main()
             // rsaprivKeyPath = malloc(MAXSIZE);
             // sprintf( rsaprivKeyPath, "%s", h.certificate );
             //*rsaprivKeyPath = h.certificate;
+            // vouch for this file
             const char *clearTextFileName = h.file_name;
             int isCertFile = isNameCertFile(clearTextFileName);
+            // vouch using this certificate
             char *certificate_file_name = h.certificate;
             char cert_loc[MAXSIZE];
             sprintf(cert_loc, "%s/%s", SERVER_CERT_DIR, certificate_file_name);
 
             if (!check_if_file_exists(cert_loc)) {
-                char *message = "Unable to locate certificate on the server. Please upload using -a\n\0";
+                char message[MAXSIZE];
+                sprintf(message, "Unable to locate %s certificate on the server. Please upload using -a\n", cert_loc);
                 send_message(ssl, message);
                 // should notify client here somehow
             }
