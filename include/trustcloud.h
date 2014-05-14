@@ -8,6 +8,8 @@
 #include <getopt.h>
 #include <errno.h>
 #include <netdb.h>
+#include <ctype.h>
+#include <sys/stat.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -37,11 +39,21 @@
 #define	LIST_FILE 2
 #define VOUCH_FILE 3
 #define VERIFY_FILE 4
-#define FIND_ISSUER 5
+#define UPLOAD_CERT 5
+#define FIND_ISSUER 6
+#define TEST_RINGOFTRUST 7
 
 #define PORT 3490
 #define MAXSIZE 1024
 #define BACKLOG 1024
+
+#define SERVER_FILE_DIR "server_files"
+#define CLIENT_FILE_DIR "client_files"
+
+#define SERVER_SIG_DIR "server_sigs"
+
+#define SERVER_CERT_DIR "server_certs"
+#define CLIENT_CERT_DIR "client_certs"
 
 #define RSA_CLIENT_CERT       "client.pem"
 #define RSA_CLIENT_KEY  "client.pem"
@@ -76,6 +88,8 @@ typedef struct header {
 	char *file_name;
 	/* Name of certificate */
 	char *certificate;
+	/* Circumference (length) of a ring of trust */
+	int circ;
 } header;
 
 #define NUM_HEAD_FIELDS 4
@@ -134,6 +148,7 @@ int vouchFile 	(char *, const char *, SSL *);
 int hashFile	(unsigned char *,const char *);
 RSA* getRsaPubFp	(const char*);
 int findIssuer(char *, char *);
-
-
+int ringOfTrust(char *, int);
+int check_if_file_exists(const char *);
+int isNameCertFile(const char *);
 #endif

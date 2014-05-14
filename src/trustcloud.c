@@ -137,7 +137,9 @@ void send_header(SSL *ssl, header h) {
         && h.action != LIST_FILE 
         && h.action != VOUCH_FILE
 		&& h.action != VERIFY_FILE
-        && h.action != FIND_ISSUER ) {
+		&& h.action != UPLOAD_CERT
+        && h.action != FIND_ISSUER 
+        && h.action != TEST_RINGOFTRUST) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
@@ -299,7 +301,7 @@ RSA* getRsaFp( const char* rsaprivKeyPath )
 {
     char *certificate = NULL;
     certificate = malloc(MAXSIZE);
-    sprintf(certificate,"client_certs/%s", rsaprivKeyPath);
+    sprintf(certificate,"%s", rsaprivKeyPath);
 
     FILE* fp;
     fp = fopen( certificate, "r" );
@@ -364,7 +366,11 @@ RSA* getRsaPubFp( const char* rsaprivKeyPath )
     return rsa;
 }
 
-/* store signature to file */
+/* store signature to file 
+ *
+ *  stored sig file will have nameing convention: 
+ *              clrtextFileName_signatorysCertName.sig
+ */
 int writeSig(unsigned char *sig, char *sig_name){
     FILE *fp; 
     fp = fopen(sig_name,"w"); /* write to file or create a file if it does not exist.*/ 
@@ -485,19 +491,32 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
 */
 
 /* Verify file with certain certificate 
+ * Params: 
+ *      signatorYCertName: string name of signer's certificate
+ *      clearText:  string name of clear text file
  * http://openssl.6102.n7.nabble.com/EVP-VerifyFinal-fail-use-RSA-public-key-openssl-1-0-0d-win32-vc2008sp1-td9539.html
  * http://stackoverflow.com/questions/15032338/extract-public-key-of-a-der-encoded-certificate-in-c
  */
-int verifySig(char *rsaprivKeyPath, const char *clearText){
+int verifySig(char *signatoryCertName, const char *clearText){
     char *sig_name = NULL;
     sig_name = malloc(MAXSIZE);
-    sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
+    if (isNameCertFile(clearText)) {
+        sprintf( sig_name, "%s/%s_%s.sig", SERVER_CERT_DIR, clearText, signatoryCertName );
+    } else {
+        sprintf( sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearText, signatoryCertName );
+    }
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
     //RSA *rsa;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
-    hashFile(md5Value, clearText);
+    char clear_text_loc[MAXSIZE];
+    if (isNameCertFile(clearText)) {
+        sprintf(clear_text_loc, "%s/%s", SERVER_CERT_DIR, clearText);
+    } else {
+        sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
+    }
+    hashFile(md5Value, clear_text_loc);
     printf("MD5:");
     for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
     printf("\n");
@@ -510,26 +529,26 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     }
 
     /* get private key file */
-    //rsa = getRsaPubFp( rsaprivKeyPath );
+    //rsa = getRsaPubFp( signatoryCertName );
     int vsigLen=128;
-    //int vsigLen = sigLength(rsaprivKeyPath,clearText);
+    //int vsigLen = sigLength(signatoryCertName,clearText);
     int vr;
     unsigned char *sig2 = NULL;
     if((sig2 = readSig(sig2, sig_name)) == (unsigned char *)' '){
-        return 1;
+        return 0;
     }
     for(int i = 0; i < vsigLen; i++) printf("%02x", sig2[i]);
         printf("\n");
     printf( "Length: '%i'\n", vsigLen );
     //printf("%s\n",certificate);
-    //printf("%s\n",rsaprivKeyPath);
+    //printf("%s\n",signatoryCertName);
 
     /*****************************************************/
 
     char *certificate = NULL;
     certificate = malloc(MAXSIZE);
-    sprintf(certificate,"server_certs/%s", rsaprivKeyPath);
-
+    sprintf(certificate,"%s/%s", SERVER_CERT_DIR, signatoryCertName);
+    // printf("certloc: %s\n", certificate);
     FILE* fp;
     fp = fopen( certificate, "r" );
     if ( fp == 0 ) {
@@ -537,6 +556,10 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     exit(1);
     }
     X509 * xcert = PEM_read_X509(fp, NULL, NULL, NULL);
+    if (!xcert) {
+        fprintf(stderr, "Could not read X509 from pem\n");
+        exit(EXIT_FAILURE);
+    }
     evpKey = X509_get_pubkey(xcert);
     /*
     if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
@@ -595,11 +618,11 @@ int verifySig(char *rsaprivKeyPath, const char *clearText){
     ERR_free_strings();
     free(md5Value);
     free(sig2);
-    return 0;
+    return 1;
 }
 
 /* vouch file */
-int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
+int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
     int num;
     unsigned char *md5Value = NULL;
     md5Value = malloc(MD5_DIGEST_LENGTH);
@@ -626,7 +649,7 @@ int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
     char *sig_name = NULL;
     //memset(sig_name, 0, MAXSIZE);
     sig_name = malloc(MAXSIZE);
-    sprintf( sig_name, "%s_%s.sig",  clearText, rsaprivKeyPath );
+    sprintf( sig_name, "%s_%s.sig",  clearText, signatorysCertName);
     ws = writeSig(sig,sig_name);
     if(ws != 0){
         fprintf( stderr, "Couldn't write signature to file.\n" );
@@ -641,7 +664,7 @@ int vouchFile(char *rsaprivKeyPath, const char *clearText, SSL *ssl){
     return 0;
 }
 
-/* get the md5 hash for a file 
+/* Open file and calculate its md5 hash 
  * http://stackoverflow.com/questions/10324611/how-to-calculate-the-md5-hash-of-a-large-file-in-c
  */
 int hashFile(unsigned char* c, const char *fileName){
@@ -666,6 +689,170 @@ int hashFile(unsigned char* c, const char *fileName){
     return 0;
 }
 
+/* return 1 if file exists, 0 otherwise */
+int check_if_file_exists(const char *file_name) {
+    struct stat st;
+    int ret = stat(file_name, &st);
+    return ret == 0;
+}
+
+int ringOfTrust(char *certName, int requiredCirc) {
+    // build list of certificates in server
+    struct dirent *dp;
+    struct dirent *_dp;
+    DIR *dfd;
+    DIR *_dfd;
+
+    char *dir = SERVER_CERT_DIR;
+    // dir = malloc(MAXSIZE);
+    // sprintf(dir, SERVER_CERT_DIR);
+
+    printf("searching %s\n", dir);
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return -1;
+    }
+
+    if ((_dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return -1;
+    }
+
+    int fileCount = 0;
+    // first get file count
+    while ((_dp = readdir(_dfd)) != NULL) {
+        if (_dp->d_type == DT_REG) {
+            if( _dp->d_namlen <4 
+                || _dp->d_name[(int)(_dp->d_namlen)-1] != 'm' 
+                || _dp->d_name[(int)(_dp->d_namlen)-2] != 'e'
+                || _dp->d_name[(int)(_dp->d_namlen)-3] != 'p'){
+                continue;
+            }
+            fileCount++;
+        }
+    }
+
+    // list of .pem files (certificates) in SERVER_CERT_DIR
+    char **fileList;
+    fileList = malloc(sizeof(char *) * fileCount);
+
+    // record if certificate already exists in ring - it can't be used
+    //      more than once for a valid ring
+    int certUsed[fileCount];
+    int i;
+    int certInd = 0;
+    int ringCirc = 0;
+
+    // init certUsed
+    for (i = 0; i < fileCount; i++) {
+        certUsed[i] = 0;
+    }
+    i = 0;
+    // build fileList
+    while((dp = readdir(dfd)) != NULL){ //need to be changed
+        char *certbuf = NULL;
+        certbuf = malloc(MAXSIZE);
+        certbuf = dp->d_name;
+        struct stat stbuf ;
+        if (dp->d_type != DT_REG) continue;
+        if( dp->d_namlen <4 
+            || dp->d_name[(int)(dp->d_namlen)-1] != 'm' 
+            || dp->d_name[(int)(dp->d_namlen)-2] != 'e'
+            || dp->d_name[(int)(dp->d_namlen)-3] != 'p'){
+            continue;
+        }
+        // printf("%s\n", dp->d_name);
+        if(!strcmp(certbuf,certName)){
+            // continue;
+            certUsed[i] = 1;
+            certInd = i;
+        }
+        fileList[i] = malloc(sizeof(char) * dp->d_namlen + 1);
+        char target[MAXSIZE];
+        sprintf(target, "%s/%s", SERVER_CERT_DIR, dp->d_name);
+        strcpy(fileList[i], target);
+        i++;
+    }
+    printf("Certs: \n");
+    for (i = 0; i < fileCount; i++) {
+        if (certUsed[i]) continue;
+        printf("ent: %s\n", fileList[i]);
+    }
+
+    char *curCert;
+    int issuerFound;
+    // search for ring
+    while (ringCirc < requiredCirc - 1 && ringCirc < fileCount) {
+        curCert = fileList[certInd];
+        issuerFound = 0;
+        X509 *cert;
+        FILE *fp = fopen(curCert, "r");
+        if (!fp) {
+            fprintf(stderr, "unable to open: %s\n", curCert);
+            return -1;
+        }
+        
+        cert = PEM_read_X509(fp, NULL, NULL, NULL);
+
+        for (i = 0; i < fileCount; i++) {
+            if (certUsed[i]) continue;
+            FILE *fp1 = fopen(fileList[i], "r");
+            if (!fp1) {
+                fprintf(stderr, "unable to open: %s\n", fileList[i]);
+                return -1;
+            }
+        
+            X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
+            //once a cert is matched, return it
+            if (X509_check_issued(certContext, cert) == X509_V_OK) {
+                // found issuer
+                printf("found issuer: %s -> %s\n", fileList[i], curCert);
+                certUsed[i] = 1;
+                certInd = i;
+                curCert = fileList[i];
+                ringCirc++;
+                X509_free(certContext);
+                issuerFound = 1;
+                break;
+            } 
+            
+            fclose(fp1);
+            X509_free(certContext);
+        }
+        if (!issuerFound) break; 
+    }
+    
+    // check now if our last found cert was signed by the first cert, 
+    // completing the ring of trust
+    char startCertLoc[MAXSIZE];
+    sprintf(startCertLoc, "%s/%s", SERVER_CERT_DIR, certName);
+    // char finalCertLoc[MAXSIZE];
+    // sprintf(finalCertLoc, "%s/%s", SERVER_CERT_DIR, curCert);
+    FILE *startfp = fopen(startCertLoc, "r");
+    FILE *finalfp = fopen(curCert, "r");
+    if (!startfp) {
+        fprintf(stderr, "unable to open startfp: %s\n", startCertLoc);
+        return -1;
+    }
+    if (!finalfp) {
+        fprintf(stderr, "unable to open: %s\n", curCert);
+        return -1;
+    }
+    X509 *startCert = PEM_read_X509(startfp, NULL, NULL, NULL);
+    X509 *finalCtx = PEM_read_X509(finalfp, NULL, NULL, NULL);
+
+    if (X509_check_issued(startCert, finalCtx) == X509_V_OK) {
+        // we have a ring
+        printf("%s -> %s\n", startCertLoc, curCert);
+        ringCirc++;
+    } else ringCirc = -1;
+
+    // if curCert is issued by certName, then we have a ring, otherwise no ring
+
+    return ringCirc;
+}
 
 /* Find if a ring of trust exist
  * https://zakird.com/2013/10/13/certificate-parsing-with-openssl/
@@ -676,7 +863,7 @@ int hashFile(unsigned char* c, const char *fileName){
     int result = 0;
     char *certificate = NULL;
     certificate = malloc(MAXSIZE);
-    sprintf(certificate,"server_certs/%s", certName);
+    sprintf(certificate,"%s/%s", SERVER_CERT_DIR, certName);
     FILE *fp = fopen(certificate, "r");
     if (!fp) {
         fprintf(stderr, "unable to open: %s\n", certificate);
@@ -702,7 +889,7 @@ int hashFile(unsigned char* c, const char *fileName){
 
     char *dir ;
     dir = malloc(MAXSIZE);
-    sprintf(dir, "server_certs");
+    sprintf(dir, SERVER_CERT_DIR);
 
 
     if ((dfd = opendir(dir)) == NULL)
@@ -762,3 +949,15 @@ int hashFile(unsigned char* c, const char *fileName){
     fclose(fp);
     return result;
  }
+
+ /*
+ * Check if file name is certificate based on .pem naming convention
+ */
+int isNameCertFile(const char *name) {
+    int len = strlen(name);
+    return  !(len < 4 
+        || name[len - 1] != 'm'
+        || name[len - 2] != 'e' 
+        || name[len - 3] != 'p'
+        || name[len - 4] != '.');
+}
