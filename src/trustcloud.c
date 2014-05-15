@@ -1134,27 +1134,23 @@ while ((dp = readdir(dfd)) != NULL) {
 return count;
 }
 
+void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength) {
+    (*visited)[v] = 1;
+    (*cycleLength)++;
+    (*cycle)[*cycleLength - 1] = v;
+    int i;
+    for (i = 0; i < numCerts; i++) {
+        if ((*adj)[v][i] > 0 && (*visited)[i] == 0) {
+            dfs(i, adj, visited, startCertInd, numCerts, cycle, cycleLength);
+        }
+    }
+    return;
+}
+
 /* return circumference of certificate chain, 
  * else return -1 if ring is not complete 
  */
 int ringOfTrust(char *startCertificate) {
-    // char issuerCertificate[MAXSIZE]; // parent
-    // char signedCertificate[MAXSIZE]; // child
-    // strcpy(signedCertificate, startCertificate);
-    // int ringCircumference = 0;
-    // // count files in dir
-    // // build list of CAs in directory
-    // // char *possibleCAs[] = getCertificatesFromDirectory(SERVER_CERT_DIR);
-    // // int usedCertificates[numcertfiles];
-
-    // while ((findIssuer(signedCertificate, issuerCertificate)) == 1) {
-    //     ringCircumference++;
-    //     if ((strcmp(startCertificate, issuerCertificate)) == 0) return ringCircumference;
-
-    //     strcpy(signedCertificate, issuerCertificate);
-    // }
-    // return -1;
-
     //loop through the directory
     struct dirent *dp;
     DIR *dfd;
@@ -1173,27 +1169,23 @@ int ringOfTrust(char *startCertificate) {
 
     CertInd *certIndexMap[numberCerts];
 
-    int adj[numberCerts][numberCerts];
+    int **adj;
+    int cc;
+    adj = malloc(numberCerts * sizeof(int*));
+    for (cc = 0; cc < numberCerts; cc++) {
+        adj[cc] = malloc(sizeof(int) * numberCerts);
+        int ccc;
+        for (ccc = 0; ccc < numberCerts; ccc++) {
+            adj[cc][ccc] = 0;
+        }
+    }
 
     int result[MAXSIZE];
-    //make up the graph
-    // char **p;
-    //http://stackoverflow.com/questions/7221981/how-to-make-a-dynamic-sized-array-in-c
-    // int i, dim1, dim2;
-    /* Allocate the first dimension, which is actually a pointer to pointer to char   */
-    // p = malloc (sizeof (char *) * dim1);
-    /* Then allocate each of the pointers allocated in previous step arrays of pointer to chars
-     * within each of these arrays are chars
-     */
-    // for (i = 0; i < dim1; i++)
-      // {
-        // *(p + i) = malloc (sizeof (char) * dim2);
-       /* or p[i] =  malloc (sizeof (char) * dim2); */
-      // }
+
     int i; 
     i = 0;
 
-    //loop through the certs in the directory to build cert indexes
+    //loop through the certs in the directory to build unique cert indexes
     while((dp = readdir(dfd)) != NULL){
         char curCertName[MAXSIZE];
         sprintf(curCertName, "%s/%s", SERVER_CERT_DIR, dp->d_name);
@@ -1233,6 +1225,10 @@ int ringOfTrust(char *startCertificate) {
         strcpy(cert, certIndexMap[i]->certName);
         char **issuers;
         int numIssuers;
+
+        // Find issuer of cert, and get all certificates this issuer owns
+        // because we trust ANY higher issuer that signed any of our issuer's
+        // certs (we trust every cert owned by issuer)
         if (findIssuer(cert, &issuers, &numIssuers)) {
             int j;
             for (j = 0; j < numIssuers; j++) {
@@ -1250,16 +1246,34 @@ int ringOfTrust(char *startCertificate) {
         }
     }
 
+    int *visited;
+    visited = malloc(sizeof(int *) * numberCerts);
+    int *cycle;
+    cycle = malloc(sizeof(int *) * numberCerts);
+    for (i = 0; i < numberCerts; i++) {
+        cycle[i] = 0;
+        visited[i] = 0;
+    }
+
+    int cycleLength = 0;
+
+    int startCertInd = getIndexOf(startCertificate, certIndexMap, numberCerts);
     // search algorithm for cycle commence here
+    printf("Begin DFS\n");
+    dfs(startCertInd, &adj, &visited, startCertInd, numberCerts, &cycle, &cycleLength);
 
+    for (i = 0; i < cycleLength; i++) {
+        printf("%i <-- ", cycle[i]);
+    }
 
-    // char *pubKey = extra the pubkey from startCertificate;
-    // in the graph,start from the startCertificate:
-    // int i = 0;
-    // while(graph not finished){
-    //     Do dfs search until find a ring;
-    //     result[i++] = length of the ring;
-    // }
+    // check for complete cycle
+    if (adj[cycle[cycleLength - 1]][startCertInd]) {
+        printf("%i", startCertInd); cycleLength++;
+    }
+
+    printf("\nEnd DFS\n");
+    printf("Ring of trust circumference: %i\n", cycleLength);
+
     return 0;
 }
 

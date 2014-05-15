@@ -340,7 +340,7 @@ int main()
                 // printf("Issuer of Guru.pem is: %s\n", issuerName);
             // else
                 // printf("didn't work\n");
-            ringOfTrust("Guru.pem");
+            ringOfTrust(h.file_name);
         }
 
         /********** END DATA PROCESSING **************/

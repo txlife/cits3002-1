@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
                 break;
             case 't':
                 test_ringoftrust = 1;
-                certificate = optarg;
+                file_name = optarg;
                 break;
             default:
                 fprintf(stderr, "Flag not recognized.\n");
@@ -453,10 +453,10 @@ int main(int argc, char *argv[])
     }  else if (test_ringoftrust) {
         header h;
         h.action = TEST_RINGOFTRUST;
-        h.file_name = " ";
-        char certName[MAXSIZE];
-        sprintf(certName, "%s_crt.pem", certificate);
-        h.certificate = certName;
+        h.file_name = file_name;
+        // char certName[MAXSIZE];
+        // sprintf(certName, "%s_crt.pem", certificate);
+        h.certificate = " ";
         h.circ = circumference;
         send_header(ssl, h);
     }
