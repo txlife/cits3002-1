@@ -866,6 +866,54 @@ void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int 
     return;
 }
 
+/* get the certificate of a sig*/
+int getCertName(char **certName, char* sigName){
+    //loop through the directory
+    char **ref;
+    ref=certName;
+    struct dirent *dp;
+    DIR *dfd;
+    int i = 0;
+
+    char dir[MAXSIZE];
+    sprintf(dir, SERVER_CERT_DIR);
+
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return 1;
+    }
+    while((dp = readdir(dfd)) != NULL)){
+        if(verifySig(dp->d_name,sigName)){
+            *certName = malloc(MAXSIZE);
+            *certName = dp->d_name;
+            certName++;
+            //sprintf(certName,"%s",dp->d_name);
+        }
+    }
+    return 0;
+}
+
+/* find longest ring a file has */
+int findLongestRing(char *fileName){
+    int longestLenght = 0;
+    char **certName[];
+    //loop through the directory
+    struct dirent *dp;
+    DIR *dfd;
+
+    char dir[MAXSIZE];
+    sprintf(dir, SERVER_SIG_DIR);
+
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return 1;
+    }
+    while((dp = readdir(dfd)) != NULL)){
+        
+    }
+
 /* return circumference of certificate chain, 
  * else return -1 if ring is not complete 
  */
