@@ -512,6 +512,10 @@ int sigLength(char *rsaprivKeyPath, const char *clearText){
 //     return -1;
 // }
 
+// int isSignedBy_name(X509 *cert, X509 *CA) {
+
+// }
+
 /* Check if signature of digest was signed by public key */
 int isSignedBy(X509 *cert, X509 *CA) {
     EVP_PKEY *pubKey; // pub key of CA
@@ -543,23 +547,43 @@ int isSignedBy(X509 *cert, X509 *CA) {
         exit(EXIT_FAILURE);
     }
 
-    unsigned char digest[MAXSIZE];
+    unsigned char digest[SHA_DIGEST_LENGTH];
     unsigned int len;
 
     // from https://zakird.com/2013/10/13/certificate-parsing-with-openssl/
     int rc = X509_digest(cert, EVP_sha1(), digest, &len);
     if (rc == 0 || len != SHA_DIGEST_LENGTH) {
-        return EXIT_FAILURE;
+        perror("X509_digest\n");
+        exit(EXIT_FAILURE);
     }
-    if(!EVP_VerifyUpdate( evp_md_ctx, digest, len)){
+    int i;
+    printf("printing digest before EVP\n");
+    for (i = 0; i < (int)len; i++) {
+        printf("%02x", digest[i]);
+    }
+    printf("\n");
+    printf("length: %i\n",(int)len);
+    if(!EVP_VerifyUpdate( evp_md_ctx, digest, sizeof(digest))){
        printf("EVP_VerifyUpdate error. \n");
        exit(EXIT_FAILURE);
     }
-
+    // FILE *sigfile = fopen("siiiiig", "w");
     unsigned char *signature = cert->signature->data;
+    // fwrite(signature, sizeof(signature), cert->signature->length, sigfile);
+    // fclose(sigfile);
+    
+    for (i = 0; i < cert->signature->length; i++) {
+        printf("%02x", signature[i]);
+    }
+    printf("\n%i\n", cert->signature->length);
+
+
+    char *shahash = cert->name;
+    printf("%s\n", shahash);
 
     // check if signature decrypted by pubKey matches digest in evp_md_ctx
     vr = EVP_VerifyFinal( evp_md_ctx, signature, cert->signature->length, pubKey);
+
     EVP_MD_CTX_destroy( evp_md_ctx );
     EVP_PKEY_free( pubKey );
     ERR_free_strings();
@@ -1020,7 +1044,7 @@ int checkSigFileName(char *fileName, char *sigFileName) {
     //start looping the certs in the directory
     while((dp = readdir(dfd)) != NULL){ //need to be changed
         char curCertName[MAXSIZE];
-        strcpy(curCertName,dp->d_name);
+        sprintf(curCertName, "%s/%s", SERVER_CERT_DIR, dp->d_name);
         struct stat stbuf ;
         if( stat(curCertName,&stbuf ) == -1 )
         {
@@ -1051,11 +1075,10 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         // open current cert (from list) as issuer
         X509 *curCert = PEM_read_X509(curCertFP, NULL, NULL, NULL);
         if(strcmp(certificateName, curCertName) != 0
-            && isSignedBy(startCert, curCert) == 1) {
+            && X509_check_issued(curCert, startCert) == X509_V_OK) {
             strcpy(issuerName, curCertName);
             return 1;
         }
-
         fclose(curCertFP);
         X509_free(curCert);
     }
@@ -1063,6 +1086,162 @@ int checkSigFileName(char *fileName, char *sigFileName) {
     fclose(startCertFp);
     return -1; // didn't find an issuer
  }
+
+ #define SERVER_INDEX_FILE "index"
+
+typedef struct CertInd {
+    char certName[MAXSIZE];
+    int i;
+} CertInd;
+
+ int getIndexOf(char *certName, CertInd *certIndexMap[], int numCerts) {
+    int i;
+    for (i = 0; i < numCerts; i++) {
+        if (strcmp(certName, certIndexMap[i]->certName) == 0) 
+            return certIndexMap[i]->i;
+    }
+    return -1;
+ }
+
+/* Count number of certificates in dir, based on .pem naming convention */
+int getNumCertsInDir(char *dir) {
+struct dirent *dp;
+DIR *dfd;
+
+if ((dfd = opendir(dir)) == NULL)
+{
+    fprintf(stderr, "[getNumCerts] Can't open %s\n", dir);
+    return 1;
+}
+
+int count = 0;
+// first get file count
+while ((dp = readdir(dfd)) != NULL) {
+    if (dp->d_type == DT_REG) {
+        if (isNameCertFile(dp->d_name)) count++;
+    }
+}
+return count;
+}
+
+/* return circumference of certificate chain, 
+ * else return -1 if ring is not complete 
+ */
+int ringOfTrust(char *startCertificate) {
+    // char issuerCertificate[MAXSIZE]; // parent
+    // char signedCertificate[MAXSIZE]; // child
+    // strcpy(signedCertificate, startCertificate);
+    // int ringCircumference = 0;
+    // // count files in dir
+    // // build list of CAs in directory
+    // // char *possibleCAs[] = getCertificatesFromDirectory(SERVER_CERT_DIR);
+    // // int usedCertificates[numcertfiles];
+
+    // while ((findIssuer(signedCertificate, issuerCertificate)) == 1) {
+    //     ringCircumference++;
+    //     if ((strcmp(startCertificate, issuerCertificate)) == 0) return ringCircumference;
+
+    //     strcpy(signedCertificate, issuerCertificate);
+    // }
+    // return -1;
+
+    //loop through the directory
+    struct dirent *dp;
+    DIR *dfd;
+
+    char dir[MAXSIZE];
+    sprintf(dir, SERVER_CERT_DIR);
+
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return 1;
+    }
+
+    int numberCerts = getNumCertsInDir(dir);
+    printf("%i\n", numberCerts);
+
+    CertInd *certIndexMap[numberCerts];
+
+    int adj[numberCerts][numberCerts];
+
+    int result[MAXSIZE];
+    //make up the graph
+    // char **p;
+    //http://stackoverflow.com/questions/7221981/how-to-make-a-dynamic-sized-array-in-c
+    // int i, dim1, dim2;
+    /* Allocate the first dimension, which is actually a pointer to pointer to char   */
+    // p = malloc (sizeof (char *) * dim1);
+    /* Then allocate each of the pointers allocated in previous step arrays of pointer to chars
+     * within each of these arrays are chars
+     */
+    // for (i = 0; i < dim1; i++)
+      // {
+        // *(p + i) = malloc (sizeof (char) * dim2);
+       /* or p[i] =  malloc (sizeof (char) * dim2); */
+      // }
+    int i; 
+    i = 0;
+
+    //loop through the certs in the directory to build cert indexes
+    while((dp = readdir(dfd)) != NULL){
+        char curCertName[MAXSIZE];
+        sprintf(curCertName, "%s/%s", SERVER_CERT_DIR, dp->d_name);
+        struct stat stbuf ;
+        if( stat(curCertName,&stbuf ) == -1 )
+        {
+            printf("Unable to stat file: %s\n",curCertName) ;
+            continue ;
+        }
+
+        // skip sub directories
+        if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        {
+            continue;
+        }
+        // skip non .pem files
+        if( !isNameCertFile(curCertName)){
+            continue;
+        }
+        CertInd *ci = malloc(sizeof(CertInd));
+        strcpy(ci->certName, dp->d_name);
+        ci->i = i;
+        certIndexMap[i] = ci;
+        i++;
+    }
+    // print mapping for debugging
+    for (i = 0; i < numberCerts; i++) {
+        printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
+    }
+
+    // build adjacency matrix
+    for (i = 0; i < numberCerts; i++) {
+        char cert[MAXSIZE];
+        strcpy(cert, certIndexMap[i]->certName);
+        char issuer[MAXSIZE];
+        if (findIssuer(cert, issuer)) {
+            char issue_noDirStr[MAXSIZE];
+            strncpy(issue_noDirStr, issuer + strlen(SERVER_CERT_DIR) + 1, strlen(issuer) - strlen(SERVER_CERT_DIR) + 1);
+            if (strcmp(cert, issue_noDirStr) == 0) continue;
+            int ci = getIndexOf(cert, certIndexMap, numberCerts);
+            int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts);
+            adj[ci][pi] = 1;  
+            printf("%s ---> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+        }
+    }
+
+    // search algorithm for cycle commence here
+    
+    
+    // char *pubKey = extra the pubkey from startCertificate;
+    // in the graph,start from the startCertificate:
+    // int i = 0;
+    // while(graph not finished){
+    //     Do dfs search until find a ring;
+    //     result[i++] = length of the ring;
+    // }
+    return 0;
+}
 
  /*
  * Check if file name is certificate based on .pem naming convention
