@@ -92,7 +92,7 @@ typedef struct header {
 	int circ;
 } header;
 
-#define NUM_HEAD_FIELDS 4
+#define NUM_HEAD_FIELDS 5
 
 /**
  * Function Declarations 
@@ -153,5 +153,6 @@ int check_if_file_exists(const char *);
 int isNameCertFile(const char *);
 int isNameSigFile(const char *);
 int isSignedBy(X509 *, X509 *);
+int getCertName(char *, char*);
 
 #endif

@@ -158,6 +158,8 @@ void send_header(SSL *ssl, header h) {
     if (certificate[strlen(certificate) - 1] == '\0') 
         certificate[strlen(certificate) - 1] = '\n';
     sprintf(++head_buff_loc, "%s\n", h.certificate);
+    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+    sprintf(++head_buff_loc, "%i\n", h.circ);
 
     head_buff_loc += 1 + strlen(certificate);
 
@@ -179,7 +181,6 @@ int unpack_header_string(char *head_string, header *h) {
     int i;
 
     char *loc = head_string;
-
     for (i = 0; i < NUM_HEAD_FIELDS; i++) {
         char buff[59];
         char *buff_loc = buff;
@@ -205,6 +206,8 @@ int unpack_header_string(char *head_string, header *h) {
                 h->certificate = malloc(strlen(buff) * sizeof(h->certificate));
                 strcpy(h->certificate, buff);
                 break;
+            case 4:
+                h->circ = atoi(buff);
             default:
                 break;
         }
@@ -221,27 +224,34 @@ size_t file_list(const char *path, char ***ls) {
     DIR *dp = NULL;
     struct dirent *ep = NULL;
 
-    dp = opendir(path);
-    if(NULL == dp) {
+    if((dp = opendir(path)) == NULL) {
         fprintf(stderr, "no such directory: '%s'", path);
         return 0;
     }
 
     *ls = NULL;
-    ep = readdir(dp);
-    while(ep != NULL){
+    while((ep=readdir(dp))!= NULL){
+        char curFileName[MAXSIZE];
+        sprintf(curFileName, "%s",ep->d_name);
+        struct stat stbuf;
+        if(!strcmp(ep->d_name,"..")||!strcmp(ep->d_name,".")){
+            continue;
+        }
         count++;
-        ep = readdir(dp);
     }
 
     rewinddir(dp);
+    free(ep);
     *ls = calloc(count, sizeof(char *));
-
     count = 0;
-    ep = readdir(dp);
-    while(ep != NULL){
+    while((ep = readdir(dp))!= NULL){
+        char curFileName[MAXSIZE];
+        sprintf(curFileName, "%s", ep->d_name);
+        struct stat stbuf ;
+        if(!strcmp(ep->d_name,"..")||!strcmp(ep->d_name,".")){
+            continue;
+        }
         (*ls)[count++] = strdup(ep->d_name);
-        ep = readdir(dp);
     }
 
     closedir(dp);
@@ -420,102 +430,6 @@ unsigned char * readSig(unsigned char *sig, char *sig_name){
     return sig;
 }
 
-/* Get signature length, used part of the formal code 
-int sigLength(char *rsaprivKeyPath, const char *clearText){
-    EVP_PKEY *evpKey;
-    if ( (evpKey = EVP_PKEY_new()) == 0 ) {
-        fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    RSA *rsa;
-    unsigned char *md5Value1 = NULL;
-    md5Value1 = malloc(MD5_DIGEST_LENGTH);
-    hashFile(md5Value1, clearText);
-    //printf("MD5:");
-    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value1[i]);
-    //printf("\n");
-    // get private key file 
-    rsa = getRsaPubFp( rsaprivKeyPath );
-    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
-        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-
-    //create EVP_CTX 
-    EVP_MD_CTX *evp_ctx;
-    if ( (evp_ctx = EVP_MD_CTX_create()) == 0 ) {
-        fprintf( stderr, "Couldn't create EVP context.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-     
-    if ( EVP_SignInit_ex( evp_ctx, EVP_sha1(), 0 ) == 0 ) {
-        fprintf( stderr, "Couldn't exec EVP_SignInit.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-     
-    if ( EVP_SignUpdate( evp_ctx, (const char *)md5Value1, sizeof(md5Value1) ) == 0 ) {
-        fprintf( stderr, "Couldn't calculate hash of message.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-
-    unsigned char *sig1 = NULL;
-    unsigned int sigLen = 0;
-    //memset(sig, 0, MAXSIZE+1024);
-    sig1 = malloc(EVP_PKEY_size(evpKey));
-    sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
-    // check sig 
-    if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
-        fprintf( stderr, "Couldn't calculate signature.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    EVP_MD_CTX_destroy( evp_ctx );
-    RSA_free( rsa );
-    EVP_PKEY_free( evpKey );
-    ERR_free_strings();
-    free(md5Value1);
-    free(sig1);
-    return sigLen;
-}
-*/
-
-/* return circumference of certificate chain, 
- * else return -1 if ring is not complete 
- */
-// int ringOfTrust(char *startCertificate) {
-//     char issuerCertificate[MAXSIZE]; // parent
-//     char signedCertificate[MAXSIZE]; // child
-//     strcpy(signedCertificate, startCertificate);
-//     int ringCircumference = 0;
-//     // count files in dir
-//     // build list of CAs in directory
-//     // char *possibleCAs[] = getCertificatesFromDirectory(SERVER_CERT_DIR);
-//     // int usedCertificates[numcertfiles];
-
-//     while ((findIssuer(signedCertificate, issuerCertificate)) == 1) {
-//         ringCircumference++;
-//         if ((strcmp(startCertificate, issuerCertificate)) == 0) return ringCircumference;
-
-//         strcpy(signedCertificate, issuerCertificate);
-//     }
-//     return -1;
-// }
-
-// int isSignedBy_name(X509 *cert, X509 *CA) {
-
-// }
-
 /* Check if signature of digest was signed by public key */
 int isSignedBy(X509 *cert, X509 *CA) {
     EVP_PKEY *pubKey; // pub key of CA
@@ -661,14 +575,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
         exit(EXIT_FAILURE);
     }
     evpKey = X509_get_pubkey(xcert);
-    /*
-    if ( EVP_PKEY_set1_RSA( evpKey, rsa ) == 0 ) {
-        fprintf( stderr, "Couldn't set EVP_PKEY to RSA key.\n" );
-        unsigned long sslErr = ERR_get_error();
-        if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
-    }
-    */
+
 
     /*create evp_ctx */
     EVP_MD_CTX *evp_ctx;
@@ -796,164 +703,6 @@ int check_if_file_exists(const char *file_name) {
     return ret == 0;
 }
 
-// int ringOfTrust(char *certName, int requiredCirc) {
-//     // build list of certificates in server
-//     struct dirent *dp;
-//     struct dirent *_dp;
-//     DIR *dfd;
-//     DIR *_dfd;
-
-//     char *dir = SERVER_CERT_DIR;
-//     // dir = malloc(MAXSIZE);
-//     // sprintf(dir, SERVER_CERT_DIR);
-
-//     printf("searching %s\n", dir);
-//     if ((dfd = opendir(dir)) == NULL)
-//     {
-//         fprintf(stderr, "Can't open %s\n", dir);
-//         return -1;
-//     }
-
-//     if ((_dfd = opendir(dir)) == NULL)
-//     {
-//         fprintf(stderr, "Can't open %s\n", dir);
-//         return -1;
-//     }
-
-//     int fileCount = 0;
-//     // first get file count
-//     while ((_dp = readdir(_dfd)) != NULL) {
-//         if (_dp->d_type == DT_REG) {
-//             if( _dp->d_namlen <4 
-//                 || _dp->d_name[(int)(_dp->d_namlen)-1] != 'm' 
-//                 || _dp->d_name[(int)(_dp->d_namlen)-2] != 'e'
-//                 || _dp->d_name[(int)(_dp->d_namlen)-3] != 'p'){
-//                 continue;
-//             }
-//             fileCount++;
-//         }
-//     }
-
-//     // list of .pem files (certificates) in SERVER_CERT_DIR
-//     char **fileList;
-//     fileList = malloc(sizeof(char *) * fileCount);
-
-//     // record if certificate already exists in ring - it can't be used
-//     //      more than once for a valid ring
-//     int certUsed[fileCount];
-//     int i;
-//     int certInd = 0;
-//     int ringCirc = 0;
-
-//     // init certUsed
-//     for (i = 0; i < fileCount; i++) {
-//         certUsed[i] = 0;
-//     }
-//     i = 0;
-//     // build fileList
-//     while((dp = readdir(dfd)) != NULL){ //need to be changed
-//         char *certbuf = NULL;
-//         certbuf = malloc(MAXSIZE);
-//         certbuf = dp->d_name;
-//         struct stat stbuf ;
-//         if (dp->d_type != DT_REG) continue;
-//         if( dp->d_namlen <4 
-//             || dp->d_name[(int)(dp->d_namlen)-1] != 'm' 
-//             || dp->d_name[(int)(dp->d_namlen)-2] != 'e'
-//             || dp->d_name[(int)(dp->d_namlen)-3] != 'p'){
-//             continue;
-//         }
-//         // printf("%s\n", dp->d_name);
-//         if(!strcmp(certbuf,certName)){
-//             // continue;
-//             certUsed[i] = 1;
-//             certInd = i;
-//         }
-//         fileList[i] = malloc(sizeof(char) * dp->d_namlen + 1);
-//         char target[MAXSIZE];
-//         sprintf(target, "%s/%s", SERVER_CERT_DIR, dp->d_name);
-//         strcpy(fileList[i], target);
-//         i++;
-//     }
-//     printf("Certs: \n");
-//     for (i = 0; i < fileCount; i++) {
-//         if (certUsed[i]) continue;
-//         printf("ent: %s\n", fileList[i]);
-//     }
-
-//     char *curCert;
-//     int issuerFound;
-//     // search for ring
-//     while (ringCirc < requiredCirc - 1 && ringCirc < fileCount) {
-//         curCert = fileList[certInd];
-//         issuerFound = 0;
-//         X509 *cert;
-//         FILE *fp = fopen(curCert, "r");
-//         if (!fp) {
-//             fprintf(stderr, "unable to open: %s\n", curCert);
-//             return -1;
-//         }
-        
-//         cert = PEM_read_X509(fp, NULL, NULL, NULL);
-
-//         for (i = 0; i < fileCount; i++) {
-//             if (certUsed[i]) continue;
-//             FILE *fp1 = fopen(fileList[i], "r");
-//             if (!fp1) {
-//                 fprintf(stderr, "unable to open: %s\n", fileList[i]);
-//                 return -1;
-//             }
-        
-//             X509 *certContext = PEM_read_X509(fp1, NULL, NULL, NULL);
-//             //once a cert is matched, return it
-//             if (X509_check_issued(certContext, cert) == X509_V_OK) {
-//                 // found issuer
-//                 printf("found issuer: %s -> %s\n", fileList[i], curCert);
-//                 certUsed[i] = 1;
-//                 certInd = i;
-//                 curCert = fileList[i];
-//                 ringCirc++;
-//                 X509_free(certContext);
-//                 issuerFound = 1;
-//                 break;
-//             } 
-            
-//             fclose(fp1);
-//             X509_free(certContext);
-//         }
-//         if (!issuerFound) break; 
-//     }
-    
-//     // check now if our last found cert was signed by the first cert, 
-//     // completing the ring of trust
-//     char startCertLoc[MAXSIZE];
-//     sprintf(startCertLoc, "%s/%s", SERVER_CERT_DIR, certName);
-//     // char finalCertLoc[MAXSIZE];
-//     // sprintf(finalCertLoc, "%s/%s", SERVER_CERT_DIR, curCert);
-//     FILE *startfp = fopen(startCertLoc, "r");
-//     FILE *finalfp = fopen(curCert, "r");
-//     if (!startfp) {
-//         fprintf(stderr, "unable to open startfp: %s\n", startCertLoc);
-//         return -1;
-//     }
-//     if (!finalfp) {
-//         fprintf(stderr, "unable to open: %s\n", curCert);
-//         return -1;
-//     }
-//     X509 *startCert = PEM_read_X509(startfp, NULL, NULL, NULL);
-//     X509 *finalCtx = PEM_read_X509(finalfp, NULL, NULL, NULL);
-
-//     if (X509_check_issued(startCert, finalCtx) == X509_V_OK) {
-//         // we have a ring
-//         printf("%s -> %s\n", startCertLoc, curCert);
-//         ringCirc++;
-//     } else ringCirc = -1;
-
-//     // if curCert is issued by certName, then we have a ring, otherwise no ring
-
-//     return ringCirc;
-// }
-
 /**
  * Check if this sig file is for your clear text file (filename)
  *     naming convention is: filename_signingCertName.sig
@@ -968,45 +717,6 @@ int checkSigFileName(char *fileName, char *sigFileName) {
     else return 0;
 }
 
-// int sigRingOfTrust(char *startCertName, int requiredCirc) {
-//     // build list of certificates in server
-//     struct dirent *dp;
-//     struct dirent *_dp;
-//     DIR *dfd;
-//     DIR *_dfd;
-
-//     char *dir = SERVER_CERT_DIR;
-//     // dir = malloc(MAXSIZE);
-//     // sprintf(dir, SERVER_CERT_DIR);
-
-//     printf("searching %s\n", dir);
-//     if ((dfd = opendir(dir)) == NULL)
-//     {
-//         fprintf(stderr, "Can't open %s\n", dir);
-//         return -1;
-//     }
-
-//     if ((_dfd = opendir(dir)) == NULL)
-//     {
-//         fprintf(stderr, "Can't open %s\n", dir);
-//         return -1;
-//     }
-
-//     int fileCount = 0;
-//     // first get file count
-//     while ((_dp = readdir(_dfd)) != NULL) {
-//         if (_dp->d_type == DT_REG) {
-//             if(!isNameSigFile(_dp->d_name)) { // skip files that are not sigs
-//                 continue;
-//             }
-//             fileCount++;
-//         }
-//     }
-
-//     int signedByGraph[fileCount][fileCount];
-
-
-// }
 
 /* Find issuer's certificate name of certificateName
  * https://zakird.com/2013/10/13/certificate-parsing-with-openssl/
@@ -1159,10 +869,67 @@ void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int 
     return;
 }
 
+/* get the certificate of a sig*/
+int getCertName(char **certName, char* sigName){
+    //loop through the directory
+    char **ref;
+    ref=certName;
+    struct dirent *dp;
+    DIR *dfd;
+    int i = 0;
+
+    char dir[MAXSIZE];
+    sprintf(dir, SERVER_CERT_DIR);
+
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return 1;
+    }
+    while((dp = readdir(dfd)) != NULL)){
+        if(verifySig(dp->d_name,sigName)){
+            *certName = malloc(MAXSIZE);
+            *certName = dp->d_name;
+            certName++;
+            //sprintf(certName,"%s",dp->d_name);
+        }
+    }
+    return 0;
+}
+
+/* find longest ring a file has */
+int findLongestRing(char *fileName){
+    int longestLenght = 0;
+    char **certName[];
+    //loop through the directory
+    struct dirent *dp;
+    DIR *dfd;
+
+    char dir[MAXSIZE];
+    sprintf(dir, SERVER_SIG_DIR);
+
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "Can't open %s\n", dir);
+        return 1;
+    }
+    while((dp = readdir(dfd)) != NULL)){
+        
+    }
+
 /* return circumference of certificate chain, 
  * else return -1 if ring is not complete 
  */
 int ringOfTrust(char *startCertificate) {
+    char *checkCert = NULL;
+    checkCert = malloc(MAXSIZE);
+    sprintf(checkCert,"%s/%s",SERVER_CERT_DIR,startCertificate);
+    FILE* fp;
+    fp = fopen( checkCert, "r" );
+    if ( fp == 0 ) {
+        fprintf( stderr, "Couldn't open certificate: %s. %s\n",checkCert, strerror(errno) );
+        return 1;
+    }
     //loop through the directory
     struct dirent *dp;
     DIR *dfd;
@@ -1175,7 +942,6 @@ int ringOfTrust(char *startCertificate) {
         fprintf(stderr, "Can't open %s\n", dir);
         return 1;
     }
-
     int numberCerts = getNumCertsInDir(dir);
     printf("Number certificates: %i\n", numberCerts);
 
