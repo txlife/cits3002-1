@@ -41,7 +41,7 @@ void receive_file(SSL *ssl, char *file_name, int file_size) {
 int recv_all(SSL *ssl, unsigned char *buf, int *len) { 
     int total = 0;        // how many bytes we've received
     int bytesleft = *len; // how many we have left to receive
-    int n;
+    int n = 0;
     while(total < *len) {
         n = SSL_read(ssl, buf+total, bytesleft);
         if (n == -1 || n == 0) { break; }
@@ -102,7 +102,7 @@ void send_file(SSL *ssl, FILE *fp) {
 int sendall(SSL *ssl, unsigned char *buf, int *len) {
     int total = 0;        // how many bytes we've sent
     int bytesleft = *len; // how many we have left to send
-    int n;
+    int n = 0;
     while(total < *len) {
         n = SSL_write(ssl, buf + total, bytesleft);
         if (n == -1) { break; }
@@ -156,7 +156,7 @@ void send_header(SSL *ssl, header h) {
     
 
     sprintf(head_buff,"%d\n%d\n%s\n%s\n%i\n",(short)h.action,(int)h.file_size,file_name,h.certificate,h.circ);
-    head_buff[HEADER_SIZE]= (char)"\0";
+    head_buff[HEADER_SIZE]= (char)'\0';
 
     printf("Sending header buff:\n %s\n", head_buff);
     int len = HEADER_SIZE;
@@ -204,6 +204,18 @@ int unpack_header_string(char *head_string, header *h) {
         }
     }
     return 0;
+}
+
+/**
+ * From cboard.cprogramming.com/c-programming/95462-compiler-error-warning-implicit-declaration-function-'strdup'.html
+ */
+char *strdup(const char *str) {
+	int n = strlen(str) + 1;
+	char *dupStr = malloc(n);
+	if (dupStr) {
+		strcpy(dupStr, str);
+	}
+	return dupStr;
 }
 
 /**server list current dir files
@@ -620,7 +632,7 @@ int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
     hashFile(shaValue, clearText);
     unsigned char *sig = NULL;
     sig = malloc(128);
-    sig[MAXSIZE] = (unsigned char) "\0";
+    sig[MAXSIZE] = (unsigned char) '\0';
     //printf("MD5:");
     //for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     //printf("\n");
@@ -724,7 +736,6 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         fclose(startCertFp);
         return 1;
     }
-
     //loop through the directory
     struct dirent *dp;
     DIR *dfd;
@@ -771,14 +782,25 @@ int checkSigFileName(char *fileName, char *sigFileName) {
 
         // open current cert (from list) as issuer
         X509 *curCert = PEM_read_X509(curCertFP, NULL, NULL, NULL);
+
+	if (!curCert) {
+		fprintf(stderr, "Couldn't read certificat: %s\n", curCertName);
+		exit(EXIT_FAILURE);
+	}
+
         if(strcmp(certificateName, curCertName) != 0
             && X509_check_issued(curCert, startCert) == X509_V_OK) {
             (*numIssuers)++;
-            realloc(*issuerNames, sizeof(*issuerNames) * (*numIssuers));
+            *issuerNames = realloc(*issuerNames, sizeof(*issuerNames) * (*numIssuers) + 1);
+	    if (!(*issuerNames)) {
+	   	fprintf(stderr, "Couldn't allocate for issuerNames\n"); 
+		exit(EXIT_FAILURE);
+	    }
             // issuerNameInd++;
             // issuerNameInd = issuerNames + *numIssuers - 1;
-            *issuerNames[*numIssuers - 1] = malloc(strlen(curCertName));
-            strcpy(*issuerNames[*numIssuers - 1], curCertName);
+            (*issuerNames)[*numIssuers - 1] = malloc(strlen(curCertName));
+            //printf("%s\n", curCertName);
+            strcpy((*issuerNames)[*numIssuers - 1], curCertName);
             // return 1;
         }
         fclose(curCertFP);
@@ -827,11 +849,22 @@ int getNumCertsInDir(char *dir) {
     }
 
     int count = 0;
+    // skip sub directories
+    // if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
     // first get file count
     while ((dp = readdir(dfd)) != NULL) {
-        if (dp->d_type == DT_REG) {
-            if (isNameCertFile(dp->d_name)) count++;
-        }
+        struct stat stbuf ;
+	char entryLoc[MAXSIZE];
+	sprintf(entryLoc, "%s/%s", SERVER_CERT_DIR, dp->d_name);
+	    if( stat(entryLoc,&stbuf) == -1 )
+	    {
+		printf("Unable to stat file: %s\n",entryLoc) ;
+		continue ;
+	    }
+
+	    if (S_ISDIR(stbuf.st_mode)) continue;
+        
+          if (isNameCertFile(dp->d_name)) count++;
     }
     return count;
 }
@@ -1010,19 +1043,19 @@ int ringOfTrust(char *startCertificate) {
         i++;
     }
     // print mapping for debugging
-    printf("Indexing Schematic:\n");
-    for (i = 0; i < numberCerts; i++) {
-        // printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
-    }
+//    printf("Indexing Schematic:\n");
+//    for (i = 0; i < numberCerts; i++) {
+//         printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
+//    }
 
-    // printf("\nBuilding signatory graph:\n");
+//     printf("\nBuilding signatory graph:\n");
 
     // build adjacency matrix
     for (i = 0; i < numberCerts; i++) {
         char cert[MAXSIZE];
         strcpy(cert, certIndexMap[i]->certName);
         char **issuers;
-        int numIssuers;
+        int numIssuers = 0;
 
         // Find issuer of cert, and get all certificates this issuer owns
         // because we trust ANY higher issuer that signed any of our issuer's
@@ -1039,7 +1072,7 @@ int ringOfTrust(char *startCertificate) {
                 int ci = getIndexOf(cert, certIndexMap, numberCerts); // child cert
                 int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts); // parent cert
                 adj[ci][pi] = 1;  
-                // printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+ //               printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
             }
         }
     }
@@ -1069,7 +1102,7 @@ int ringOfTrust(char *startCertificate) {
     int cycycy = 0;
     printf("DeepestNode: %s\n", getNameOfCert(vert, certIndexMap, numberCerts));
     while (vert != -1) {
-        // printf("%s(%i) --> ", getNameOfCert(vert, certIndexMap, numberCerts), vert);
+         printf("%s(%i) --> ", getNameOfCert(vert, certIndexMap, numberCerts), vert);
         cycycy++;
         vert = parents[vert];
     }
