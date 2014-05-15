@@ -126,22 +126,6 @@ int main()
     		sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
     		printf("[SERVER] Adding file %s\n", target);
     		receive_file(ssl, target, h.file_size);
-
-            /* Maybe implement this later... dir for cas that have signed
-             * this file ?
-            // add directory for certificates which have signed
-            // for (i.e. vouched for) this file
-            char dir_name[BLOCK_SIZE];
-            
-            sprintf(dir_name, "%s/%s_CAs", serv_dir, h.file_name);
-            
-            // if (mkdir(dir_name, S_IRWXU) < 0) {
-            //     perror("mkdir");
-            //     exit(EXIT_FAILURE);
-            // }
-            // write_cert(h.certificate);
-            close(client_fd);
-            */
     	} else if (h.action == FETCH_FILE) {
             char target[BLOCK_SIZE];
             sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
@@ -171,19 +155,10 @@ int main()
     		count = file_list(SERVER_FILE_DIR, &files);
     		printf("There are %zu files in the directory,transmitting file list.\n", count);
     		for (i = 0; i < count; i++) {
-    			// SSL_write(ssl,files[i],strlen(files[i]));
                 char send_str[MAXSIZE];
-
-                // get ring of trust circumference for file[i]
-
-                // if (ring-of-trust(file[i]) >= h.circ) // file verified and protected
-                // int minRing = ringOfTrust(file[i])
                 sprintf(send_str, "Verified (c = 3): %s", files[i]);
-                // else // file not verified
-                // sprintf(send_str, "Not Verified (c = 3): %s", files[i]);
 
                 send_message(ssl, send_str);
-    			// sleep(1);
     		}
     		printf("File list transmitting completed.\n");
     		close(client_fd);
@@ -194,10 +169,6 @@ int main()
          * https://gitorious.org/random_play/random_play/source/b9f19d4d9e8d4a9ba0ef55a6b0e2113d1c6a5587:openssl_sign.c
          */
         else if (h.action == VOUCH_FILE){
-            // char *rsaprivKeyPath = NULL;
-            // rsaprivKeyPath = malloc(MAXSIZE);
-            // sprintf( rsaprivKeyPath, "%s", h.certificate );
-            //*rsaprivKeyPath = h.certificate;
             // vouch for this file
             const char *clearTextFileName = h.file_name;
             int isCertFile = isNameCertFile(clearTextFileName);
@@ -244,102 +215,22 @@ int main()
                 fprintf(stderr, "Could not save signature file\n");
                 exit(EXIT_FAILURE);
             }
-            // get encrypted hash back, then verify:    
-            //      decrypt using client's public cert
-            //      check decrypted hash against original calculated md5Value
-            // if (verifySig(h.certificate, clearTextFileName) != 0) {
-            //     // probably do something more effective here, like 
-            //     // remove the file or the signature or something.
-            //     // Guess the file is just not protected by this cert
-            //     fprintf(stderr,"Verification failed after vouching\n");
-            //     // exit(EXIT_FAILURE);
-            // }
-
-            // recv_all(ssl, &signature);
-            // vouchFile(rsaprivKeyPath,clearText, ssl);
-            //verifySig(rsaprivKeyPath,clearText);
 
         }
 
         else if (h.action == VERIFY_FILE){
             char signatoryCertName[MAXSIZE];
             sprintf( signatoryCertName, "%s_crt.pem", h.certificate );
-            //*signatoryCertName = h.certificate;
             const char *clearText = h.file_name;
-            //vouchFile(signatoryCertName,clearText, ssl);
-            
             if(!verifySig(signatoryCertName,clearText)){
                 printf("Verify failed\n");
             }
-
-        } else if (h.action == FIND_ISSUER){
+        } 
+        else if (h.action == FIND_ISSUER){
             char certPath[MAXSIZE];
-            //char issuer[MAXSIZE];
             sprintf( certPath, "%s", h.certificate );
-            //int result = 0;
-            //*rsaprivKeyPath = h.certificate;
-            
-            // if( (result = findIssuer(issuer, certPath)) == 0){
-            //     printf("Find Issuer: %s\n", issuer);
-            // }
-            // else if(result == 2){
-            //     printf("No Issuer found\n");
-            // }
-
-        } else if (h.action == TEST_RINGOFTRUST) {
-            // int rot = ringOfTrust(h.certificate, h.circ);
-            // if (rot >= 0)
-                // printf("ring of trsut leve: %i\n", rot);
-            // else 
-                // printf("Something went wrong with ROT\n");
-            // FILE *fp1, *fp2;
-            // // fp1 = fopen("scripts/1_crt.pem", "r");
-            // fp1 = fopen("server_certs/3_crt.pem", "r");
-            // // fp2 = fopen("scripts/signed/4_crt.pem", "r");
-            // fp2 = fopen("server_certs/4_crt.pem", "r");
-            // X509 *x1, *x2;
-
-            // x1 = PEM_read_X509(fp1, NULL, NULL, NULL);
-            // x2 = PEM_read_X509(fp2, NULL, NULL, NULL);
-
-            // if (!x1) {
-            //     printf("Couldn't get x1\n");
-            //     exit(EXIT_FAILURE);
-            // } else if (!x2) {
-            //     printf("Coudlnt' get x2\n");
-            //     exit(EXIT_FAILURE);
-            // }
-            // printf("%i\n", X509_check_issued(x1, x2));
-            // if (X509_check_issued(x1, x2) == X509_V_OK) {
-            //     printf("x1 signed x2\n");
-            // } else 
-            //     printf("Not verified\n");
-            // char *c1 = "server_certs/Aole.pem"; // CA cert
-            // char *c2 = "server_certs/Baro.pem"; //child
-
-            // X509 *x1, *x2;
-
-            // FILE *fp1 = fopen(c1, "r");
-            // FILE *fp2 = fopen(c2, "r");
-
-            // x1 = PEM_read_X509(fp1, NULL, NULL, NULL);
-            // x2 = PEM_read_X509(fp2, NULL, NULL, NULL);
-            // if (!x1) {
-            //     printf("Couldn't get x1\n");
-            //     exit(EXIT_FAILURE);
-            // } else if (!x2) {
-            //     printf("Coudlnt' get x2\n");
-            //     exit(EXIT_FAILURE);
-            // }
-
-            // printf("%i\n", isSignedBy(x2, x1));
-            // printf("X1 Signed X2 %i\n", X509_check_issued(x1, x2));
-            // char issuerName[MAXSIZE];
-
-            // if (findIssuer("Guru.pem", issuerName) == 1)
-                // printf("Issuer of Guru.pem is: %s\n", issuerName);
-            // else
-                // printf("didn't work\n");
+        } 
+        else if (h.action == TEST_RINGOFTRUST) {
             ringOfTrust(h.file_name);
         }
 
