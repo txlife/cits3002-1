@@ -223,7 +223,6 @@ size_t file_list(const char *path, char ***ls) {
     while((ep=readdir(dp))!= NULL){
         char curFileName[MAXSIZE];
         sprintf(curFileName, "%s",ep->d_name);
-        struct stat stbuf;
         if(!strcmp(ep->d_name,"..")||!strcmp(ep->d_name,".")){
             continue;
         }
@@ -237,7 +236,6 @@ size_t file_list(const char *path, char ***ls) {
     while((ep = readdir(dp))!= NULL){
         char curFileName[MAXSIZE];
         sprintf(curFileName, "%s", ep->d_name);
-        struct stat stbuf ;
         if(!strcmp(ep->d_name,"..")||!strcmp(ep->d_name,".")){
             continue;
         }
@@ -752,7 +750,7 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         }
 
         // skip sub directories
-        if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        if (S_ISDIR(stbuf.st_mode))
         {
             continue;
         }
@@ -996,7 +994,8 @@ int ringOfTrust(char *startCertificate) {
         }
 
         // skip sub directories
-        if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        // if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        if (S_ISDIR(stbuf.st_mode))
         {
             continue;
         }
