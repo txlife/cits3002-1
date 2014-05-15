@@ -666,8 +666,8 @@ int verifySig(char *signatoryCertName, const char *clearText){
     //RSA_free( rsa );
     EVP_PKEY_free( evpKey );
     ERR_free_strings();
-    free(md5Value);
-    free(sig2);
+    // free(md5Value);
+    // free(sig2);
     return 1;
 }
 
@@ -709,8 +709,8 @@ int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
         printf("Signature file successfully written : %s\n", sig_name);
     }
     SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
-    free(md5Value);
-    free(sig);
+    // free(md5Value);
+    // free(sig);
     return 0;
 }
 

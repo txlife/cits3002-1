@@ -239,7 +239,8 @@ int main()
         }
 
         /********** END DATA PROCESSING **************/
-
+        free(h.certificate);
+        free(h.file_name);
         /* Close SSL Connection */
         SSL_shutdown(ssl);
         /* Release SSL */

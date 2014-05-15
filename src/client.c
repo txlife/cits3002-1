@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
     char buff[1024];
     SSL_CTX *ctx;
     SSL *ssl;
+    header h;
     //X509            *server_cert;
     //EVP_PKEY        *pkey;
 
@@ -136,24 +137,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-
-    if(VERIFY_CLIENT == ON){
-        /* Load the client certificate into the SSL_CTX structure */
-        if (SSL_CTX_use_certificate_file(ctx, RSA_CLIENT_CERT, SSL_FILETYPE_PEM) <= 0) {
-            ERR_print_errors_fp(stderr);
-            exit(EXIT_FAILURE);
-        }
-        /* Load the private-key corresponding to the client certificate */
-        if (SSL_CTX_use_PrivateKey_file(ctx, RSA_CLIENT_KEY, SSL_FILETYPE_PEM) <= 0) {
-            ERR_print_errors_fp(stderr);
-            exit(EXIT_FAILURE);
-        }
-        /* Check if the client certificate and private-key matches */
-        if (!SSL_CTX_check_private_key(ctx)) {
-            fprintf(stderr,"Private key does not match the certificate public key\n");
-            exit(EXIT_FAILURE);
-        }
-    }
     /* Load the RSA CA certificate into the SSL_CTX structure */
     /* This will allow this client to verify the server's     */
     /* certificate.                                           */
@@ -213,7 +196,6 @@ int main(int argc, char *argv[])
         printf("%s\n", target);
         FILE *fp;
         if ((fp = fopen(target, "r"))){
-            header h;
             h.action = ADD_FILE;
             h.file_size = get_file_size(fp);
             h.file_name = file_name;
@@ -266,11 +248,11 @@ int main(int argc, char *argv[])
 
         FILE *fp;
         if ((fp = fopen(target, "r"))){
-            header h;
             h.action = UPLOAD_CERT;
             h.file_size = get_file_size(fp);
             h.file_name = file_name;
             h.certificate = " ";
+            h.circ = circumference;
             send_header(ssl, h);
             send_file(ssl, fp);
         } else {
@@ -281,7 +263,6 @@ int main(int argc, char *argv[])
 
     /** List Files **/
     else if(list_flag){
-        header h;
         h.action = LIST_FILE;
         h.file_size = 0;
         h.file_name = " ";
@@ -306,7 +287,6 @@ int main(int argc, char *argv[])
 
     /* Vouch File */
     else if(vouch_flag){
-        header h;
         h.action = VOUCH_FILE;
         h.file_size = 0;
         h.file_name = file_name;
@@ -421,12 +401,13 @@ int main(int argc, char *argv[])
             buff[num] = '\0';
             printf("%s\n",buffer);
         }
+        free(md5Value);
+        free(sig1);
     }
     // vouchFile()
     // sign hash and send back to server (with cert??)
 
     else if (verify_flag){
-        header h;
         h.action = VERIFY_FILE;
         h.file_size = 0;
         h.file_name = file_name;
@@ -448,14 +429,12 @@ int main(int argc, char *argv[])
             printf("%s\n",buffer);
         }
     }  else if (findissuer_flag){
-        header h;
         h.action = FIND_ISSUER;
         h.file_size = 0;
         h.file_name = " ";
         h.certificate = certificate;
         send_header(ssl, h);
     }  else if (test_ringoftrust) {
-        header h;
         h.action = TEST_RINGOFTRUST;
         h.file_name = file_name;
         // char certName[MAXSIZE];
