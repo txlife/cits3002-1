@@ -706,15 +706,13 @@ int check_if_file_exists(const char *file_name) {
 /**
  * Check if this sig file is for your clear text file (filename)
  *     naming convention is: filename_signingCertName.sig
- * @param  fileName [description]
- * @param  sigName  [description]
- * @return          [description]
  */
 int checkSigFileName(char *fileName, char *sigFileName) {
     if (strlen(fileName) > strlen(sigFileName)) return 0;
 
-    char *fileNamePortionOfSigName = malloc(strlen(fileName));
+    char *fileNamePortionOfSigName = malloc(strlen(fileName) + 1);
     strncpy(fileNamePortionOfSigName, sigFileName, strlen(fileName));
+    fileNamePortionOfSigName[strlen(fileName)] = '\0';
     if (strcmp(fileName, fileNamePortionOfSigName) == 0) return 1;
     else return 0;
 }
@@ -856,16 +854,22 @@ int getNumCertsInDir(char *dir) {
 
 // to find longest cycle: 
 //      find deepest node that signed root node
-void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength) {
+void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength, int depth, int **parents, int *deepestNode) {
     // for longest, maybe only set visited[v] = 1 if v != startCertInd, so we can visit startCertInd again.
     //      but we should only be able to visit startCertInd again if it is the final node... (not sure)
     (*visited)[v] = 1;
     (*cycleLength)++;
     (*cycle)[*cycleLength - 1] = v;
+
+    if (depth > *deepestNode && (*adj)[v][startCertInd] && v != startCertInd) {
+        *deepestNode = v;
+    }
     int i;
     for (i = 0; i < numCerts; i++) {
         if ((*adj)[v][i] > 0 && (*visited)[i] == 0) {
-            dfs(i, adj, visited, startCertInd, numCerts, cycle, cycleLength);
+            (*parents)[i] = v;
+
+            dfs(i, adj, visited, startCertInd, numCerts, cycle, cycleLength, depth + 1, parents, deepestNode);
         }
     }
     return;
@@ -908,7 +912,7 @@ int getProtectionRating(char *fileName) {
             strncpy(certName, dp->d_name + strlen(fileName) + 1, 
                 certNameStrLen);
             certName[certNameStrLen] = '\0';
-            printf("Checking ring of trust for: %s\n", certName);
+            printf("Checking ring of trust for: %s signed by %s\n", fileName, certName);
             int certsROT = ringOfTrust(certName);
             maxRingOfTrust = maxRingOfTrust <= certsROT ? certsROT : maxRingOfTrust;
         }
@@ -1023,10 +1027,10 @@ int ringOfTrust(char *startCertificate) {
     // print mapping for debugging
     printf("Indexing Schematic:\n");
     for (i = 0; i < numberCerts; i++) {
-        printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
+        // printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
     }
 
-    printf("\nBuilding signatory graph:\n");
+    // printf("\nBuilding signatory graph:\n");
 
     // build adjacency matrix
     for (i = 0; i < numberCerts; i++) {
@@ -1047,10 +1051,10 @@ int ringOfTrust(char *startCertificate) {
 
                 // at the moment skip self signed certs - not sure if this is correct though
                 if (strcmp(cert, issue_noDirStr) == 0) continue;
-                int ci = getIndexOf(cert, certIndexMap, numberCerts);
-                int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts);
+                int ci = getIndexOf(cert, certIndexMap, numberCerts); // child cert
+                int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts); // parent cert
                 adj[ci][pi] = 1;  
-                printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+                // printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
             }
         }
     }
@@ -1059,34 +1063,47 @@ int ringOfTrust(char *startCertificate) {
     visited = malloc(sizeof(int *) * numberCerts);
     int *cycle;
     cycle = malloc(sizeof(int *) * numberCerts);
+    int *parents;
+    parents = malloc(sizeof(int) * numberCerts);
     for (i = 0; i < numberCerts; i++) {
         cycle[i] = 0;
         visited[i] = 0;
+        parents[i] = -1;
     }
 
     int cycleLength = 0;
+    int deepestNode = -1;
 
     int startCertInd = getIndexOf(startCertificate, certIndexMap, numberCerts);
     // search algorithm for cycle commence here
     printf("Begin DFS\n");
-    dfs(startCertInd, &adj, &visited, startCertInd, numberCerts, &cycle, &cycleLength);
-
-    for (i = 0; i < cycleLength; i++) {
-        printf("%s(%i) <-- ", getNameOfCert(cycle[i], certIndexMap, numberCerts),cycle[i]);
+    dfs(startCertInd, &adj, &visited, startCertInd, numberCerts, &cycle, &cycleLength, 0, &parents, &deepestNode);
+    if (deepestNode == -1) return 0;
+    // for (i = 0; i < cycleLength; i++) {
+    int vert = deepestNode;
+    int cycycy = 0;
+    printf("DeepestNode: %s\n", getNameOfCert(vert, certIndexMap, numberCerts));
+    while (vert != -1) {
+        // printf("%s(%i) --> ", getNameOfCert(vert, certIndexMap, numberCerts), vert);
+        cycycy++;
+        vert = parents[vert];
     }
 
+    // for ()
+    // while
+
     // check for complete cycle
-    if (adj[cycle[cycleLength - 1]][startCertInd]) {
-        printf("%s(%i)", getNameOfCert(startCertInd, certIndexMap, numberCerts), startCertInd); cycleLength++;
-        cycleLength--;
+    // if (adj[cycle[cycleLength - 1]][startCertInd]) {
+    if (adj[deepestNode][startCertInd]) {
+        // printf("%s(%i)", getNameOfCert(startCertInd, certIndexMap, numberCerts), startCertInd); cycleLength++;
     } else { // there's no cycle!
-        cycleLength = 0;
+        cycycy = 0;
     }
 
     printf("\nEnd DFS\n");
-    printf("Ring of trust circumference: %i\n", cycleLength);
+    printf("Ring of trust circumference: %i\n", cycycy);
     fclose(fp);
-    return cycleLength;
+    return cycycy;
 }
 
  /*
