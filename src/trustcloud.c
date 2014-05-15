@@ -1012,7 +1012,10 @@ int checkSigFileName(char *fileName, char *sigFileName) {
  * https://zakird.com/2013/10/13/certificate-parsing-with-openssl/
  * http://stackoverflow.com/questions/1271064/how-do-i-loop-through-all-files-in-a-folder-using-c
  */
- int findIssuer(char *certificateName, char *issuerName){
+ int findIssuer(char *certificateName, char ***issuerNames, int *numIssuers){
+    *issuerNames = malloc(sizeof(char **));
+    *numIssuers = 0;
+    // char **issuerNameInd = issuerNames;
     char certificateLoc[MAXSIZE];
     sprintf(certificateLoc,"%s/%s", SERVER_CERT_DIR, certificateName);
     FILE *startCertFp = fopen(certificateLoc, "r");
@@ -1076,14 +1079,21 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         X509 *curCert = PEM_read_X509(curCertFP, NULL, NULL, NULL);
         if(strcmp(certificateName, curCertName) != 0
             && X509_check_issued(curCert, startCert) == X509_V_OK) {
-            strcpy(issuerName, curCertName);
-            return 1;
+            // printf("Isssss: %s\n", *issuerNameInd);
+            (*numIssuers)++;
+            realloc(*issuerNames, sizeof(*issuerNames) * (*numIssuers));
+            // issuerNameInd++;
+            // issuerNameInd = issuerNames + *numIssuers - 1;
+            *issuerNames[*numIssuers - 1] = malloc(strlen(curCertName));
+            strcpy(*issuerNames[*numIssuers - 1], curCertName);
+            // return 1;
         }
         fclose(curCertFP);
         X509_free(curCert);
     }
     X509_free(startCert);
     fclose(startCertFp);
+    if (*numIssuers > 0) return 1;
     return -1; // didn't find an issuer
  }
 
@@ -1159,7 +1169,7 @@ int ringOfTrust(char *startCertificate) {
     }
 
     int numberCerts = getNumCertsInDir(dir);
-    printf("%i\n", numberCerts);
+    printf("Number certificates: %i\n", numberCerts);
 
     CertInd *certIndexMap[numberCerts];
 
@@ -1216,21 +1226,27 @@ int ringOfTrust(char *startCertificate) {
     }
 
     printf("\nBuilding signatory graph:\n");
+
     // build adjacency matrix
     for (i = 0; i < numberCerts; i++) {
         char cert[MAXSIZE];
         strcpy(cert, certIndexMap[i]->certName);
-        char issuer[MAXSIZE];
-        if (findIssuer(cert, issuer)) {
-            char issue_noDirStr[MAXSIZE];
-            strncpy(issue_noDirStr, issuer + strlen(SERVER_CERT_DIR) + 1, strlen(issuer) - strlen(SERVER_CERT_DIR) + 1);
+        char **issuers;
+        int numIssuers;
+        if (findIssuer(cert, &issuers, &numIssuers)) {
+            int j;
+            for (j = 0; j < numIssuers; j++) {
+                char *issuer = issuers[j];
+                char issue_noDirStr[MAXSIZE];
+                strncpy(issue_noDirStr, issuer + strlen(SERVER_CERT_DIR) + 1, strlen(issuer) - strlen(SERVER_CERT_DIR) + 1);
 
-            // at the moment skip self signed certs - not sure if this is correct though
-            if (strcmp(cert, issue_noDirStr) == 0) continue;
-            int ci = getIndexOf(cert, certIndexMap, numberCerts);
-            int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts);
-            adj[ci][pi] = 1;  
-            printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+                // at the moment skip self signed certs - not sure if this is correct though
+                if (strcmp(cert, issue_noDirStr) == 0) continue;
+                int ci = getIndexOf(cert, certIndexMap, numberCerts);
+                int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts);
+                adj[ci][pi] = 1;  
+                printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+            }
         }
     }
 

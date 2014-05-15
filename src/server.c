@@ -279,12 +279,12 @@ int main()
             int result = 0;
             //*rsaprivKeyPath = h.certificate;
             
-            if( (result = findIssuer(issuer, certPath)) == 0){
-                printf("Find Issuer: %s\n", issuer);
-            }
-            else if(result == 2){
-                printf("No Issuer found\n");
-            }
+            // if( (result = findIssuer(issuer, certPath)) == 0){
+            //     printf("Find Issuer: %s\n", issuer);
+            // }
+            // else if(result == 2){
+            //     printf("No Issuer found\n");
+            // }
 
         } else if (h.action == TEST_RINGOFTRUST) {
             // int rot = ringOfTrust(h.certificate, h.circ);
@@ -334,12 +334,12 @@ int main()
 
             // printf("%i\n", isSignedBy(x2, x1));
             // printf("X1 Signed X2 %i\n", X509_check_issued(x1, x2));
-            char issuerName[MAXSIZE];
+            // char issuerName[MAXSIZE];
 
-            if (findIssuer("Guru.pem", issuerName) == 1)
-                printf("Issuer of Guru.pem is: %s\n", issuerName);
-            else
-                printf("didn't work\n");
+            // if (findIssuer("Guru.pem", issuerName) == 1)
+                // printf("Issuer of Guru.pem is: %s\n", issuerName);
+            // else
+                // printf("didn't work\n");
             ringOfTrust("Guru.pem");
         }
 

@@ -147,7 +147,7 @@ unsigned char * 	readSig(unsigned char *, char *);
 int vouchFile 	(char *, const char *, SSL *);
 int hashFile	(unsigned char *,const char *);
 RSA* getRsaPubFp	(const char*);
-int findIssuer(char *, char **, int *);
+int findIssuer(char *, char ***, int *);
 int ringOfTrust(char *);
 int check_if_file_exists(const char *);
 int isNameCertFile(const char *);
