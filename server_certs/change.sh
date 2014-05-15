@@ -1,4 +1,22 @@
 #!/bin/bash
-for i in $(ls);do
-  mv $i $i.pem
-done
+mv Aole.pem Aole_crt.pem
+mv Baro.pem Baro_crt.pem
+mv Ceru.pem Ceru_crt.pem
+mv Dudu.pem Dudu_crt.pem
+mv Eure.pem Eure_crt.pem
+mv Firo.pem Firo_crt.pem
+mv Guru.pem Guru_crt.pem
+mv Hita.pem Hita_crt.pem
+mv Ioie.pem Ioie_crt.pem
+mv Jade.pem Jade_crt.pem
+mv Kuro.pem Kuro_crt.pem
+mv Lala.pem Lala_crt.pem
+mv Mimi.pem Mimi_crt.pem
+mv Nono.pem Nono_crt.pem
+mv Oare.pem Oare_crt.pem
+mv Picu.pem Picu_crt.pem
+mv Qipa.pem Qipa_crt.pem
+mv Ruso.pem Ruso_crt.pem
+mv Siya.pem Siya_crt.pem
+mv Tada.pem Tada_crt.pem
+mv Uiki.pem Uiki_crt.pem

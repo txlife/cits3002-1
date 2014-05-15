@@ -1079,7 +1079,6 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         X509 *curCert = PEM_read_X509(curCertFP, NULL, NULL, NULL);
         if(strcmp(certificateName, curCertName) != 0
             && X509_check_issued(curCert, startCert) == X509_V_OK) {
-            // printf("Isssss: %s\n", *issuerNameInd);
             (*numIssuers)++;
             realloc(*issuerNames, sizeof(*issuerNames) * (*numIssuers));
             // issuerNameInd++;
@@ -1143,7 +1142,11 @@ int getNumCertsInDir(char *dir) {
     return count;
 }
 
+// to find longest cycle: 
+//      find deepest node that signed root node
 void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength) {
+    // for longest, maybe only set visited[v] = 1 if v != startCertInd, so we can visit startCertInd again.
+    //      but we should only be able to visit startCertInd again if it is the final node... (not sure)
     (*visited)[v] = 1;
     (*cycleLength)++;
     (*cycle)[*cycleLength - 1] = v;

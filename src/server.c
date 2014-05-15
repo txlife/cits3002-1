@@ -261,7 +261,7 @@ int main()
 
         }
 
-        else if (h.action == VERIFY_FILE){
+        else if (h.action == VERIFY_FILE){ // test verification of signature files
             char signatoryCertName[MAXSIZE];
             sprintf( signatoryCertName, "%s_crt.pem", h.certificate );
             //*signatoryCertName = h.certificate;
