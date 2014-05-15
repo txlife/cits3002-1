@@ -1210,10 +1210,12 @@ int ringOfTrust(char *startCertificate) {
         i++;
     }
     // print mapping for debugging
+    printf("Indexing Schematic:\n");
     for (i = 0; i < numberCerts; i++) {
         printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
     }
 
+    printf("\nBuilding signatory graph:\n");
     // build adjacency matrix
     for (i = 0; i < numberCerts; i++) {
         char cert[MAXSIZE];
@@ -1222,17 +1224,19 @@ int ringOfTrust(char *startCertificate) {
         if (findIssuer(cert, issuer)) {
             char issue_noDirStr[MAXSIZE];
             strncpy(issue_noDirStr, issuer + strlen(SERVER_CERT_DIR) + 1, strlen(issuer) - strlen(SERVER_CERT_DIR) + 1);
+
+            // at the moment skip self signed certs - not sure if this is correct though
             if (strcmp(cert, issue_noDirStr) == 0) continue;
             int ci = getIndexOf(cert, certIndexMap, numberCerts);
             int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts);
             adj[ci][pi] = 1;  
-            printf("%s ---> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+            printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
         }
     }
 
     // search algorithm for cycle commence here
-    
-    
+
+
     // char *pubKey = extra the pubkey from startCertificate;
     // in the graph,start from the startCertificate:
     // int i = 0;
