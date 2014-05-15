@@ -279,12 +279,12 @@ int main()
             int result = 0;
             //*rsaprivKeyPath = h.certificate;
             
-            if( (result = findIssuer(issuer, certPath)) == 0){
-                printf("Find Issuer: %s\n", issuer);
-            }
-            else if(result == 2){
-                printf("No Issuer found\n");
-            }
+            // if( (result = findIssuer(issuer, certPath)) == 0){
+            //     printf("Find Issuer: %s\n", issuer);
+            // }
+            // else if(result == 2){
+            //     printf("No Issuer found\n");
+            // }
 
         } else if (h.action == TEST_RINGOFTRUST) {
             // int rot = ringOfTrust(h.certificate, h.circ);
@@ -314,6 +314,33 @@ int main()
             //     printf("x1 signed x2\n");
             // } else 
             //     printf("Not verified\n");
+            // char *c1 = "server_certs/Aole.pem"; // CA cert
+            // char *c2 = "server_certs/Baro.pem"; //child
+
+            // X509 *x1, *x2;
+
+            // FILE *fp1 = fopen(c1, "r");
+            // FILE *fp2 = fopen(c2, "r");
+
+            // x1 = PEM_read_X509(fp1, NULL, NULL, NULL);
+            // x2 = PEM_read_X509(fp2, NULL, NULL, NULL);
+            // if (!x1) {
+            //     printf("Couldn't get x1\n");
+            //     exit(EXIT_FAILURE);
+            // } else if (!x2) {
+            //     printf("Coudlnt' get x2\n");
+            //     exit(EXIT_FAILURE);
+            // }
+
+            // printf("%i\n", isSignedBy(x2, x1));
+            // printf("X1 Signed X2 %i\n", X509_check_issued(x1, x2));
+            // char issuerName[MAXSIZE];
+
+            // if (findIssuer("Guru.pem", issuerName) == 1)
+                // printf("Issuer of Guru.pem is: %s\n", issuerName);
+            // else
+                // printf("didn't work\n");
+            ringOfTrust(h.file_name);
         }
 
         /********** END DATA PROCESSING **************/
