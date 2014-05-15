@@ -120,7 +120,15 @@ int main()
             exit(EXIT_FAILURE);
         }
 
-        printf("HEADER ACTION %i\n", h.action);
+        if (h.action == FAIL_ERROR) {
+            /* Close SSL Connection */
+            SSL_shutdown(ssl);
+            /* Release SSL */
+            SSL_free(ssl);
+            //Close Connection Socket
+            close(client_fd);
+            continue;
+        }
 
 		// header part end
 	    // if client requests to uplaod file
@@ -138,13 +146,28 @@ int main()
                 perror("fopen");
                 exit(EXIT_FAILURE);
             }
+
+            // get file's protection rating to compare to 
+            // client's requested circumference 
+            int protectionRating = getProtectionRating(h.file_name);
+
             header h_send;
-            h_send.action = ADD_FILE;
+
+            if (protectionRating >= h.circ) {    
+                h_send.action = ADD_FILE;
+            } else {
+                h_send.action = FAIL_ERROR; // client will fail out
+            }
+
+
             h_send.file_size = get_file_size(fp);
             h_send.file_name = h.file_name;
             h_send.certificate = " ";
             send_header(ssl, h_send);
-            send_file(ssl, fp);
+
+            if (protectionRating >= h.circ) 
+                send_file(ssl, fp);
+
         }  else if (h.action == UPLOAD_CERT) {
             char target[MAXSIZE];
             sprintf(target, "%s/%s_crt.pem", SERVER_CERT_DIR, h.file_name);
@@ -224,7 +247,6 @@ int main()
                 fprintf(stderr, "Could not save signature file\n");
                 exit(EXIT_FAILURE);
             }
-
         }
 
         else if (h.action == VERIFY_FILE){ // test verification of signature files
@@ -244,7 +266,8 @@ int main()
         }
 
         /********** END DATA PROCESSING **************/
-
+        free(h.certificate);
+        free(h.file_name);
         /* Close SSL Connection */
         SSL_shutdown(ssl);
         /* Release SSL */

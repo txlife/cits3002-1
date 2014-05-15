@@ -34,6 +34,7 @@
 #include <openssl/bio.h>
 
 /** Operation Header Action Descriptor Flag Definitions **/
+#define FAIL_ERROR -1
 #define ADD_FILE 0
 #define FETCH_FILE 1
 #define	LIST_FILE 2

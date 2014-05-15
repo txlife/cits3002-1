@@ -131,7 +131,8 @@ void send_message(SSL *ssl, char *buffer) {
 }
 
 void send_header(SSL *ssl, header h) {
-    char head_buff[HEADER_SIZE];
+    char *head_buff= NULL;
+    head_buff = malloc(HEADER_SIZE);
     if (   h.action != ADD_FILE 
         && h.action != FETCH_FILE 
         && h.action != LIST_FILE 
@@ -139,34 +140,23 @@ void send_header(SSL *ssl, header h) {
 		&& h.action != VERIFY_FILE
 		&& h.action != UPLOAD_CERT
         && h.action != FIND_ISSUER 
-        && h.action != TEST_RINGOFTRUST) {
+        && h.action != TEST_RINGOFTRUST
+        && h.action != FAIL_ERROR) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
-    // pack header into string, using new line characters as delimiters
-    char *head_buff_loc = head_buff;
-    sprintf(head_buff_loc, "%d\n", (short)h.action);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
-    sprintf(++head_buff_loc, "%d\n", (int)h.file_size);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+
     char *file_name = h.file_name;
     if (file_name[strlen(file_name) - 1] == '\0') 
         file_name[strlen(file_name) - 1] = '\n';
-    sprintf(++head_buff_loc, "%s\n", file_name);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+    
     char *certificate = h.certificate;
     if (certificate[strlen(certificate) - 1] == '\0') 
         certificate[strlen(certificate) - 1] = '\n';
-    sprintf(++head_buff_loc, "%s\n", h.certificate);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
-    sprintf(++head_buff_loc, "%i\n", h.circ);
+    
 
-    head_buff_loc += 1 + strlen(certificate);
-
-    while (head_buff_loc < head_buff + HEADER_SIZE - 1) {
-        *head_buff_loc = '\0';
-        head_buff_loc++;
-    }
+    sprintf(head_buff,"%d\n%d\n%s\n%s\n%i\n",(short)h.action,(int)h.file_size,file_name,h.certificate,h.circ);
+    head_buff[HEADER_SIZE]= (char)"\0";
 
     printf("Sending header buff:\n %s\n", head_buff);
     int len = HEADER_SIZE;
@@ -175,6 +165,7 @@ void send_header(SSL *ssl, header h) {
         fprintf(stderr, "Error sending header\n");
         exit(EXIT_FAILURE);
     }
+    //free(head_buff);
 }   
 
 int unpack_header_string(char *head_string, header *h) {
@@ -212,7 +203,6 @@ int unpack_header_string(char *head_string, header *h) {
                 break;
         }
     }
-
     return 0;
 }
 
@@ -522,24 +512,23 @@ int verifySig(char *signatoryCertName, const char *clearText){
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
     //RSA *rsa;
-    unsigned char *md5Value = NULL;
-    md5Value = malloc(MD5_DIGEST_LENGTH);
+    unsigned char *shaValue = NULL;
+    shaValue = malloc(SHA_DIGEST_LENGTH);
     char clear_text_loc[MAXSIZE];
     if (isNameCertFile(clearText)) {
         sprintf(clear_text_loc, "%s/%s", SERVER_CERT_DIR, clearText);
     } else {
         sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
     }
-    hashFile(md5Value, clear_text_loc);
-    printf("MD5:");
-    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    hashFile(shaValue, clear_text_loc);
+    printf("SHA:");
+    for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     printf("\n");
-    //printf("Incorrect MD5: %s\n", md5Value);
     if ( (evpKey = EVP_PKEY_new()) == 0 ) {
         fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+        return -1;
     }
 
     /* get private key file */
@@ -566,8 +555,8 @@ int verifySig(char *signatoryCertName, const char *clearText){
     FILE* fp;
     fp = fopen( certificate, "r" );
     if ( fp == 0 ) {
-    fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
-    exit(1);
+        fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
+        return -1;
     }
     X509 * xcert = PEM_read_X509(fp, NULL, NULL, NULL);
     if (!xcert) {
@@ -583,7 +572,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
         fprintf( stderr, "Couldn't create EVP context.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+        return -1;
     }
 
 
@@ -591,15 +580,12 @@ int verifySig(char *signatoryCertName, const char *clearText){
         fprintf( stderr, "Couldn't exec EVP_VerifyInit.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+        return -1;
     }
 
-    if(!EVP_VerifyUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value))){
-
-               printf("EVP_VerifyUpdate error. \n");
-
-               exit(1);
-
+    if(!EVP_VerifyUpdate( evp_ctx, (const char *)shaValue, sizeof(shaValue))){
+       printf("EVP_VerifyUpdate error. \n");
+       return -1;
     }
     //printf("ClearText:%s\n",clearText);
     //memset(sig, 0, MAXSIZE+1024);
@@ -623,24 +609,24 @@ int verifySig(char *signatoryCertName, const char *clearText){
     //RSA_free( rsa );
     EVP_PKEY_free( evpKey );
     ERR_free_strings();
-    free(md5Value);
-    free(sig2);
+    // free(shaValue);
+    // free(sig2);
     return 1;
 }
 
 /* vouch file */
 int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
     int num;
-    unsigned char *md5Value = NULL;
-    md5Value = malloc(MD5_DIGEST_LENGTH);
-    hashFile(md5Value, clearText);
+    unsigned char *shaValue = NULL;
+    shaValue = malloc(SHA_DIGEST_LENGTH);
+    hashFile(shaValue, clearText);
     unsigned char *sig = NULL;
     sig = malloc(128);
     sig[MAXSIZE] = (unsigned char) "\0";
     //printf("MD5:");
-    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    //for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     //printf("\n");
-    SSL_write(ssl,md5Value,sizeof(md5Value)*2);
+    SSL_write(ssl,shaValue,sizeof(shaValue)*2);
     num = SSL_read(ssl, sig, 128);
     if ( num <= 0 )
     {
@@ -666,8 +652,8 @@ int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
         printf("Signature file successfully written : %s\n", sig_name);
     }
     SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
-    free(md5Value);
-    free(sig);
+    // free(shaValue);
+    // free(sig);
     return 0;
 }
 
@@ -690,7 +676,7 @@ int hashFile(unsigned char* c, const char *fileName){
     while ((bytes = fread (data, 1, 1024, fp)) != 0)
     SHA1_Update (&shaContext, data, bytes);
     SHA1_Final (c,&shaContext);
-    //for(i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", c[i]);
+    //for(i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", c[i]);
     //printf (" %s\n", filename);
     fclose (fp);
     return 0;
@@ -912,8 +898,8 @@ int getProtectionRating(char *fileName) {
             strncpy(certName, dp->d_name + strlen(fileName) + 1, 
                 certNameStrLen);
             certName[certNameStrLen] = '\0';
-            printf("Checking ring of trust for: %s signed by %s\n", fileName, certName);
             int certsROT = ringOfTrust(certName);
+            printf("Ring of trust for: %s signed by %s is %i\n", fileName, certName, certsROT);
             maxRingOfTrust = maxRingOfTrust <= certsROT ? certsROT : maxRingOfTrust;
         }
     }
