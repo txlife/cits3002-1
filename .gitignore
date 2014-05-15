@@ -24,3 +24,5 @@
 
 server
 client
+
+server_sigs/*
