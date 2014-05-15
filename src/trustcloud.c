@@ -1104,34 +1104,43 @@ typedef struct CertInd {
     int i;
 } CertInd;
 
- int getIndexOf(char *certName, CertInd *certIndexMap[], int numCerts) {
+int getIndexOf(char *certName, CertInd *certIndexMap[], int numCerts) {
     int i;
     for (i = 0; i < numCerts; i++) {
         if (strcmp(certName, certIndexMap[i]->certName) == 0) 
             return certIndexMap[i]->i;
     }
     return -1;
- }
+}
+
+char * getNameOfCert(int certNum, CertInd *certIndexMap[], int numCerts) {
+    int i;
+    for (i = 0; i < numCerts; i++) {
+        if (certIndexMap[i]->i == certNum) 
+            return certIndexMap[i]->certName;
+    }
+    return "";
+}
 
 /* Count number of certificates in dir, based on .pem naming convention */
 int getNumCertsInDir(char *dir) {
-struct dirent *dp;
-DIR *dfd;
+    struct dirent *dp;
+    DIR *dfd;
 
-if ((dfd = opendir(dir)) == NULL)
-{
-    fprintf(stderr, "[getNumCerts] Can't open %s\n", dir);
-    return 1;
-}
-
-int count = 0;
-// first get file count
-while ((dp = readdir(dfd)) != NULL) {
-    if (dp->d_type == DT_REG) {
-        if (isNameCertFile(dp->d_name)) count++;
+    if ((dfd = opendir(dir)) == NULL)
+    {
+        fprintf(stderr, "[getNumCerts] Can't open %s\n", dir);
+        return 1;
     }
-}
-return count;
+
+    int count = 0;
+    // first get file count
+    while ((dp = readdir(dfd)) != NULL) {
+        if (dp->d_type == DT_REG) {
+            if (isNameCertFile(dp->d_name)) count++;
+        }
+    }
+    return count;
 }
 
 void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength) {
@@ -1179,8 +1188,6 @@ int ringOfTrust(char *startCertificate) {
             adj[cc][ccc] = 0;
         }
     }
-
-    int result[MAXSIZE];
 
     int i; 
     i = 0;
@@ -1263,18 +1270,18 @@ int ringOfTrust(char *startCertificate) {
     dfs(startCertInd, &adj, &visited, startCertInd, numberCerts, &cycle, &cycleLength);
 
     for (i = 0; i < cycleLength; i++) {
-        printf("%i <-- ", cycle[i]);
+        printf("%s(%i) <-- ", getNameOfCert(cycle[i], certIndexMap, numberCerts),cycle[i]);
     }
 
     // check for complete cycle
     if (adj[cycle[cycleLength - 1]][startCertInd]) {
-        printf("%i", startCertInd); cycleLength++;
+        printf("%s(%i)", getNameOfCert(startCertInd, certIndexMap, numberCerts), startCertInd); cycleLength++;
     }
 
     printf("\nEnd DFS\n");
     printf("Ring of trust circumference: %i\n", cycleLength);
 
-    return 0;
+    return cycleLength;
 }
 
  /*
