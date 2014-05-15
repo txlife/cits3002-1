@@ -7,7 +7,6 @@ int main()
     int socket_fd, client_fd,num;
     socklen_t size;
     SSL_CTX *ctx;
-
     /*******  START SSL ***************/
     /* http://mooon.blog.51cto.com/1246491/909932 */
     /* SSL Libraries Init */
@@ -120,102 +119,125 @@ int main()
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
+
+        printf("HEADER ACTION %i\n", h.action);
+
 		// header part end
-        while(1) {
-		    // if client requests to uplaod file
-        	if (h.action == ADD_FILE) {
-        		char *serv_dir = "server_files";
-        		char target[BLOCK_SIZE];
-        		sprintf(target, "%s/%s", serv_dir, h.file_name);
-        		printf("[SERVER] Adding file %s\n", target);
-        		receive_file(ssl, target, h.file_size);
-                close(client_fd);
-                break;
-        	} else if (h.action == FETCH_FILE) {
-                char *serv_dir = "server_files";
-                char target[BLOCK_SIZE];
-                sprintf(target, "%s/%s", serv_dir, h.file_name);
-                printf("[SERVER] Fetching file %s\n", target);
-                FILE *fp;
-                if (!(fp = fopen(target, "r"))) {
-                    perror("fopen");
-                    exit(EXIT_FAILURE);
-                }
-                header h_send;
-                h_send.action = ADD_FILE;
-                h_send.file_size = get_file_size(fp);
-                h_send.file_name = h.file_name;
-                h_send.certificate = " ";
-                send_header(ssl, h_send);
-                send_file(ssl, fp);
-                break;
-            } // if client requests to list files
-		    else if (h.action == LIST_FILE) {
-        		char **files;
-        		size_t count;
-        		unsigned int i;
-        		count = file_list("./", &files);
-        		printf("There are %zu files in the directory,transmitting file list.\n", count);
-        		for (i = 0; i < count; i++) {
-        			SSL_write(ssl,files[i],strlen(files[i]));
-        			sleep(1);
-        		}
-        		printf("File list transmitting completed.\n");
-        		close(client_fd);
-        		printf("Client connection closed.\n");
-                break;
-		    }
+	    // if client requests to uplaod file
+    	if (h.action == ADD_FILE) {
+    		char target[MAXSIZE];
+    		sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
+    		printf("[SERVER] Adding file %s\n", target);
+    		receive_file(ssl, target, h.file_size);
+    	} else if (h.action == FETCH_FILE) {
+            char target[BLOCK_SIZE];
+            sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
+            printf("[SERVER] Fetching file %s\n", target);
+            FILE *fp;
+            if (!(fp = fopen(target, "r"))) {
+                perror("fopen");
+                exit(EXIT_FAILURE);
+            }
+            header h_send;
+            h_send.action = ADD_FILE;
+            h_send.file_size = get_file_size(fp);
+            h_send.file_name = h.file_name;
+            h_send.certificate = " ";
+            send_header(ssl, h_send);
+            send_file(ssl, fp);
+        }  else if (h.action == UPLOAD_CERT) {
+            char target[MAXSIZE];
+            sprintf(target, "%s/%s_crt.pem", SERVER_CERT_DIR, h.file_name);
+            printf("Receiving cert and storing: %s\n", target);
+            receive_file(ssl, target, h.file_size);
+        }// if client requests to list files
+	    else if (h.action == LIST_FILE) {
+    		char **files;
+    		size_t count;
+    		unsigned int i;
+    		count = file_list(SERVER_FILE_DIR, &files);
+    		printf("There are %zu files in the directory,transmitting file list.\n", count);
+    		for (i = 0; i < count; i++) {
+                char send_str[MAXSIZE];
+                int protectionRating = getProtectionRating(files[i]);
+                sprintf(send_str, "Verified (c = %i): %s",
+                                         protectionRating,files[i]);
 
-            /* if client requires to vouch a file
-             * https://gitorious.org/random_play/random_play/source/b9f19d4d9e8d4a9ba0ef55a6b0e2113d1c6a5587:openssl_sign.c
-             */
-            else if (h.action == VOUCH_FILE){
-                char *rsaprivKeyPath = NULL;
-                rsaprivKeyPath = malloc(MAXSIZE);
-                sprintf( rsaprivKeyPath, "%s", h.certificate );
-                //*rsaprivKeyPath = h.certificate;
-                const char *clearText = h.file_name;
-                vouchFile(rsaprivKeyPath,clearText, ssl);
-                
-                //verifySig(rsaprivKeyPath,clearText);
+                send_message(ssl, send_str);
+    		}
+    		printf("File list transmitting completed.\n");
+    		close(client_fd);
+    		printf("Client connection closed.\n");
+	    }
 
-                break;
+        /* if client requires to vouch a file
+         * https://gitorious.org/random_play/random_play/source/b9f19d4d9e8d4a9ba0ef55a6b0e2113d1c6a5587:openssl_sign.c
+         */
+        else if (h.action == VOUCH_FILE){
+            // vouch for this file
+            const char *clearTextFileName = h.file_name;
+            int isCertFile = isNameCertFile(clearTextFileName);
+            // vouch using this certificate
+            char *certificate_file_name = h.certificate;
+            char cert_loc[MAXSIZE];
+            sprintf(cert_loc, "%s/%s", SERVER_CERT_DIR, certificate_file_name);
+
+            if (!check_if_file_exists(cert_loc)) {
+                char message[MAXSIZE];
+                sprintf(message, "Unable to locate %s certificate on the server. Please upload using -a\n", cert_loc);
+                send_message(ssl, message);
+                // should notify client here somehow
             }
 
-            else if (h.action == VERIFY_FILE){
-                char *rsaprivKeyPath = NULL;
-                rsaprivKeyPath = malloc(MAXSIZE);
-                sprintf( rsaprivKeyPath, "%s", h.certificate );
-                //*rsaprivKeyPath = h.certificate;
-                const char *clearText = h.file_name;
-                //vouchFile(rsaprivKeyPath,clearText, ssl);
-                
-                if(verifySig(rsaprivKeyPath,clearText) == 1){
-                    printf("Verify failed\n");
-                }
+            char target[BLOCK_SIZE];
 
-                break;
+            if (isCertFile) {
+                sprintf(target, "%s/%s", SERVER_CERT_DIR, h.file_name);
+            } else {
+                sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
             }
 
-            else if (h.action == FIND_ISSUER){
-                char *certPath = NULL;
-                certPath = malloc(MAXSIZE);
-                char *issuer = NULL;
-                issuer = malloc(MAXSIZE);
-                sprintf( certPath, "%s", h.certificate );
-                int result = 0;
-                //*rsaprivKeyPath = h.certificate;
-                
-                if( (result = findIssuer(issuer, certPath)) == 0){
-                    printf("Find Issuer: %s\n", issuer);
-                }
-                else if(result == 2){
-                    printf("No Issuer found\n");
-                }
+            unsigned char *md5Value = NULL;
+            md5Value = malloc(MD5_DIGEST_LENGTH);
+            hashFile(md5Value, (const char *)target);
+            send_message(ssl, (char *)md5Value);
 
-                break;
+            unsigned char signature[MAXSIZE];
+            
+            SSL_read(ssl, signature, 128);
+
+            char sig_name[MAXSIZE];
+
+            // keep certificate signatures with certificates
+            if (isCertFile) {
+                sprintf(sig_name, "%s/%s_%s.sig", SERVER_CERT_DIR, clearTextFileName, certificate_file_name);
+            } else {
+                sprintf(sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearTextFileName, certificate_file_name);
             }
-        } //End of Inner While...
+
+            printf("Sig loc: %s\n", sig_name);
+            if (writeSig(signature, sig_name) != 0) {
+                fprintf(stderr, "Could not save signature file\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        else if (h.action == VERIFY_FILE){ // test verification of signature files
+            char signatoryCertName[MAXSIZE];
+            sprintf( signatoryCertName, "%s_crt.pem", h.certificate );
+            const char *clearText = h.file_name;
+            if(!verifySig(signatoryCertName,clearText)){
+                printf("Verify failed\n");
+            }
+        } 
+        else if (h.action == FIND_ISSUER){
+            char certPath[MAXSIZE];
+            sprintf( certPath, "%s", h.certificate );
+        } 
+        else if (h.action == TEST_RINGOFTRUST) {
+            ringOfTrust(h.file_name);
+        }
+
         /********** END DATA PROCESSING **************/
 
         /* Close SSL Connection */
