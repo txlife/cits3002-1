@@ -154,5 +154,6 @@ int isNameCertFile(const char *);
 int isNameSigFile(const char *);
 int isSignedBy(X509 *, X509 *);
 int getCertName(char *, char*);
+int getProtectionRating(char *);
 
 #endif

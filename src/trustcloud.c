@@ -182,11 +182,10 @@ int unpack_header_string(char *head_string, header *h) {
 
     char *loc = head_string;
     for (i = 0; i < NUM_HEAD_FIELDS; i++) {
-        char buff[59];
+        char buff[MAXSIZE];
         char *buff_loc = buff;
         while (*loc != '\n') {
             *buff_loc = *loc;
-            // printf("%c\n", *buff_loc);
             buff_loc++; loc++;
         }
         loc++;
@@ -199,15 +198,16 @@ int unpack_header_string(char *head_string, header *h) {
                 h->file_size = atoi(buff);
                 break;
             case 2:
-                h->file_name = malloc(strlen(buff) * sizeof(h->file_name));
+                h->file_name = malloc(strlen(buff));
                 strcpy(h->file_name, buff);
                 break;
             case 3:
-                h->certificate = malloc(strlen(buff) * sizeof(h->certificate));
+                h->certificate = malloc(strlen(buff));
                 strcpy(h->certificate, buff);
                 break;
             case 4:
                 h->circ = atoi(buff);
+                break;
             default:
                 break;
         }
@@ -711,7 +711,9 @@ int check_if_file_exists(const char *file_name) {
  * @return          [description]
  */
 int checkSigFileName(char *fileName, char *sigFileName) {
-    char fileNamePortionOfSigName[MAXSIZE];
+    if (strlen(fileName) > strlen(sigFileName)) return 0;
+
+    char *fileNamePortionOfSigName = malloc(strlen(fileName));
     strncpy(fileNamePortionOfSigName, sigFileName, strlen(fileName));
     if (strcmp(fileName, fileNamePortionOfSigName) == 0) return 1;
     else return 0;
@@ -869,42 +871,14 @@ void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int 
     return;
 }
 
-/* get the certificate of a sig*/
-int getCertName(char **certName, char* sigName){
-    //loop through the directory
-    char **ref;
-    ref=certName;
+int getProtectionRating(char *fileName) {
+    // find file's signatures
+    // do ringOfTrust on each signature's certificate
+    // report max ringOfTrust
+    
+    //loop through signature directory directory
     struct dirent *dp;
     DIR *dfd;
-    int i = 0;
-
-    char dir[MAXSIZE];
-    sprintf(dir, SERVER_CERT_DIR);
-
-    if ((dfd = opendir(dir)) == NULL)
-    {
-        fprintf(stderr, "Can't open %s\n", dir);
-        return 1;
-    }
-    while((dp = readdir(dfd)) != NULL)){
-        if(verifySig(dp->d_name,sigName)){
-            *certName = malloc(MAXSIZE);
-            *certName = dp->d_name;
-            certName++;
-            //sprintf(certName,"%s",dp->d_name);
-        }
-    }
-    return 0;
-}
-
-/* find longest ring a file has */
-int findLongestRing(char *fileName){
-    int longestLenght = 0;
-    char **certName[];
-    //loop through the directory
-    struct dirent *dp;
-    DIR *dfd;
-
     char dir[MAXSIZE];
     sprintf(dir, SERVER_SIG_DIR);
 
@@ -913,9 +887,61 @@ int findLongestRing(char *fileName){
         fprintf(stderr, "Can't open %s\n", dir);
         return 1;
     }
-    while((dp = readdir(dfd)) != NULL)){
-        
+
+    int maxRingOfTrust = -1;
+
+    while((dp = readdir(dfd)) != NULL){
+        // if this is a signature of fileName
+        if (checkSigFileName(fileName, dp->d_name)) {
+            // get ring of trust on sig's certificate
+            char *certName = malloc(strlen(dp->d_name) - strlen(fileName) - 6);
+
+            // extract certificate name portion of sigfile name
+            //      (e.g. fileName_certificate.pem.sig -> certificate.pem)
+            strncpy(certName, dp->d_name + strlen(fileName) + 1, 
+                strlen(dp->d_name) - strlen(fileName) - 5);
+
+            printf("Checking ring of trust for: %s\n", certName);
+            int certsROT = ringOfTrust(certName);
+            maxRingOfTrust = maxRingOfTrust <= certsROT ? certsROT : maxRingOfTrust;
+        }
     }
+    return maxRingOfTrust;
+}
+
+// /* get the certificate of a sig*/
+// int getCertName(char **certName, char* sigName){
+//     //loop through the directory
+//     char **ref;
+//     ref=certName;
+//     struct dirent *dp;
+//     DIR *dfd;
+//     int i = 0;
+
+//     char dir[MAXSIZE];
+//     sprintf(dir, SERVER_CERT_DIR);
+
+//     if ((dfd = opendir(dir)) == NULL)
+//     {
+//         fprintf(stderr, "Can't open %s\n", dir);
+//         return 1;
+//     }
+//     while((dp = readdir(dfd)) != NULL)){
+//         if(verifySig(dp->d_name,sigName)){
+//             *certName = malloc(MAXSIZE);
+//             *certName = dp->d_name;
+//             certName++;
+//             //sprintf(certName,"%s",dp->d_name);
+//         }
+//     }
+//     return 0;
+// }
+
+// /* find longest ring a file has */
+// int findLongestRing(char *fileName){
+//     int longestLenght = 0;
+//     char **certName[];
+
 
 /* return circumference of certificate chain, 
  * else return -1 if ring is not complete 
@@ -1049,7 +1075,7 @@ int ringOfTrust(char *startCertificate) {
 
     printf("\nEnd DFS\n");
     printf("Ring of trust circumference: %i\n", cycleLength);
-
+    fclose(fp);
     return cycleLength;
 }
 

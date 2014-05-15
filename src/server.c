@@ -119,6 +119,9 @@ int main()
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
+
+        printf("HEADER ACTION %i\n", h.action);
+
 		// header part end
 	    // if client requests to uplaod file
     	if (h.action == ADD_FILE) {
@@ -156,7 +159,9 @@ int main()
     		printf("There are %zu files in the directory,transmitting file list.\n", count);
     		for (i = 0; i < count; i++) {
                 char send_str[MAXSIZE];
-                sprintf(send_str, "Verified (c = 3): %s", files[i]);
+                int protectionRating = getProtectionRating(files[i]);
+                sprintf(send_str, "Verified (c = %i): %s",
+                                         protectionRating,files[i]);
 
                 send_message(ssl, send_str);
     		}

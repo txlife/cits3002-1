@@ -217,7 +217,8 @@ int main(int argc, char *argv[])
             h.action = ADD_FILE;
             h.file_size = get_file_size(fp);
             h.file_name = file_name;
-            h.certificate = " ";
+            h.certificate = "ssss";
+            h.circ = circumference;
             send_header(ssl, h);
             send_file(ssl, fp);
         } else {
@@ -229,7 +230,8 @@ int main(int argc, char *argv[])
         h_send.action = FETCH_FILE;
         h_send.file_name = file_name;
         h_send.file_size = -1;
-        h_send.certificate = " ";
+        h_send.certificate = "bbbb";
+        h_send.circ = circumference;
         header h_recv;
         send_header(ssl, h_send);
         char head_buf[HEADER_SIZE];
