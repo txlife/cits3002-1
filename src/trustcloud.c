@@ -871,10 +871,16 @@ void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int 
     return;
 }
 
+/*
+ * Get protection rating of a file based on the longest ring of trust
+ * its signatory belongs to.
+ *
+ * File is regarded as protected if max(ringOfTrust(fileName)) > requested circumference
+ */
 int getProtectionRating(char *fileName) {
     // find file's signatures
     // do ringOfTrust on each signature's certificate
-    // report max ringOfTrust
+    // return max ringOfTrust
     
     //loop through signature directory directory
     struct dirent *dp;
@@ -894,7 +900,7 @@ int getProtectionRating(char *fileName) {
         // if this is a signature of fileName
         if (checkSigFileName(fileName, dp->d_name)) {
             // get ring of trust on sig's certificate
-            char *certName = malloc(strlen(dp->d_name) - strlen(fileName) - 6);
+            char *certName = malloc(strlen(dp->d_name) - strlen(fileName) - 5);
 
             // extract certificate name portion of sigfile name
             //      (e.g. fileName_certificate.pem.sig -> certificate.pem)

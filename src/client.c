@@ -429,6 +429,7 @@ int main(int argc, char *argv[])
         h.action = VERIFY_FILE;
         h.file_size = 0;
         h.file_name = file_name;
+        h.circ = 0;
         h.certificate = certificate;
         send_header(ssl, h);
         while(1){
