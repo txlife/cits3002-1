@@ -92,7 +92,7 @@ typedef struct header {
 	int circ;
 } header;
 
-#define NUM_HEAD_FIELDS 4
+#define NUM_HEAD_FIELDS 5
 
 /**
  * Function Declarations 

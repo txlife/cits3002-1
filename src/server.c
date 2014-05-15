@@ -274,9 +274,9 @@ int main()
 
         } else if (h.action == FIND_ISSUER){
             char certPath[MAXSIZE];
-            char issuer[MAXSIZE];
+            //char issuer[MAXSIZE];
             sprintf( certPath, "%s", h.certificate );
-            int result = 0;
+            //int result = 0;
             //*rsaprivKeyPath = h.certificate;
             
             // if( (result = findIssuer(issuer, certPath)) == 0){

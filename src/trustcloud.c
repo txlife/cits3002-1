@@ -158,6 +158,8 @@ void send_header(SSL *ssl, header h) {
     if (certificate[strlen(certificate) - 1] == '\0') 
         certificate[strlen(certificate) - 1] = '\n';
     sprintf(++head_buff_loc, "%s\n", h.certificate);
+    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+    sprintf(++head_buff_loc, "%i\n", h.circ);
 
     head_buff_loc += 1 + strlen(certificate);
 
@@ -179,7 +181,6 @@ int unpack_header_string(char *head_string, header *h) {
     int i;
 
     char *loc = head_string;
-
     for (i = 0; i < NUM_HEAD_FIELDS; i++) {
         char buff[59];
         char *buff_loc = buff;
@@ -205,6 +206,8 @@ int unpack_header_string(char *head_string, header *h) {
                 h->certificate = malloc(strlen(buff) * sizeof(h->certificate));
                 strcpy(h->certificate, buff);
                 break;
+            case 4:
+                h->circ = atoi(buff);
             default:
                 break;
         }
@@ -1160,6 +1163,15 @@ void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int 
  * else return -1 if ring is not complete 
  */
 int ringOfTrust(char *startCertificate) {
+    char *checkCert = NULL;
+    checkCert = malloc(MAXSIZE);
+    sprintf(checkCert,"%s/%s",SERVER_CERT_DIR,startCertificate);
+    FILE* fp;
+    fp = fopen( checkCert, "r" );
+    if ( fp == 0 ) {
+        fprintf( stderr, "Couldn't open certificate: %s. %s\n",checkCert, strerror(errno) );
+        return 1;
+    }
     //loop through the directory
     struct dirent *dp;
     DIR *dfd;
@@ -1172,7 +1184,6 @@ int ringOfTrust(char *startCertificate) {
         fprintf(stderr, "Can't open %s\n", dir);
         return 1;
     }
-
     int numberCerts = getNumCertsInDir(dir);
     printf("Number certificates: %i\n", numberCerts);
 
