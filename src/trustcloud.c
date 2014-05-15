@@ -894,19 +894,20 @@ int getProtectionRating(char *fileName) {
         return 1;
     }
 
-    int maxRingOfTrust = -1;
+    int maxRingOfTrust = 0;
 
     while((dp = readdir(dfd)) != NULL){
         // if this is a signature of fileName
         if (checkSigFileName(fileName, dp->d_name)) {
             // get ring of trust on sig's certificate
-            char *certName = malloc(strlen(dp->d_name) - strlen(fileName) - 5);
+            int certNameStrLen = strlen(dp->d_name) - strlen(fileName) - 5;
+            char *certName = malloc(certNameStrLen + 1);
 
             // extract certificate name portion of sigfile name
             //      (e.g. fileName_certificate.pem.sig -> certificate.pem)
             strncpy(certName, dp->d_name + strlen(fileName) + 1, 
-                strlen(dp->d_name) - strlen(fileName) - 5);
-
+                certNameStrLen);
+            certName[certNameStrLen] = '\0';
             printf("Checking ring of trust for: %s\n", certName);
             int certsROT = ringOfTrust(certName);
             maxRingOfTrust = maxRingOfTrust <= certsROT ? certsROT : maxRingOfTrust;
@@ -1077,6 +1078,9 @@ int ringOfTrust(char *startCertificate) {
     // check for complete cycle
     if (adj[cycle[cycleLength - 1]][startCertInd]) {
         printf("%s(%i)", getNameOfCert(startCertInd, certIndexMap, numberCerts), startCertInd); cycleLength++;
+        cycleLength--;
+    } else { // there's no cycle!
+        cycleLength = 0;
     }
 
     printf("\nEnd DFS\n");
