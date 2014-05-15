@@ -288,6 +288,8 @@ int main(int argc, char *argv[])
         h.certificate = " ";
         h.circ = circumference;
         send_header(ssl, h);
+        printf("Listing Files in Server\n");
+        printf("|| Protected Status (circumference of ring = n): filename ||\n\n");
     	while(1){
     		memset(buffer, 0, sizeof(buffer));
     		//num = recv(socket_fd, buffer, sizeof(buffer),0);

@@ -156,12 +156,16 @@ int main()
     		size_t count;
     		unsigned int i;
     		count = file_list(SERVER_FILE_DIR, &files);
-    		printf("There are %zu files in the directory,transmitting file list.\n", count);
     		for (i = 0; i < count; i++) {
                 char send_str[MAXSIZE];
                 int protectionRating = getProtectionRating(files[i]);
-                sprintf(send_str, "Verified (c = %i): %s",
+                if (protectionRating >= h.circ) {
+                    sprintf(send_str, "Protected (c = %i): %s",
                                          protectionRating,files[i]);
+                } else {
+                    sprintf(send_str, "Unprotected (c = %i): %s",
+                                            protectionRating,files[i]);
+                }
 
                 send_message(ssl, send_str);
     		}
