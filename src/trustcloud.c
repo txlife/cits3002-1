@@ -568,19 +568,19 @@ int verifySig(char *signatoryCertName, const char *clearText){
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
     //RSA *rsa;
-    unsigned char *md5Value = NULL;
-    md5Value = malloc(MD5_DIGEST_LENGTH);
+    unsigned char *shaValue = NULL;
+    shaValue = malloc(SHA_DIGEST_LENGTH);
     char clear_text_loc[MAXSIZE];
     if (isNameCertFile(clearText)) {
         sprintf(clear_text_loc, "%s/%s", SERVER_CERT_DIR, clearText);
     } else {
         sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
     }
-    hashFile(md5Value, clear_text_loc);
-    printf("MD5:");
-    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    hashFile(shaValue, clear_text_loc);
+    printf("SHA:");
+    for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     printf("\n");
-    //printf("Incorrect MD5: %s\n", md5Value);
+    //printf("Incorrect MD5: %s\n", shaValue);
     if ( (evpKey = EVP_PKEY_new()) == 0 ) {
         fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
         unsigned long sslErr = ERR_get_error();
@@ -640,7 +640,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
         return -1;
     }
 
-    if(!EVP_VerifyUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value))){
+    if(!EVP_VerifyUpdate( evp_ctx, (const char *)shaValue, sizeof(shaValue))){
        printf("EVP_VerifyUpdate error. \n");
        return -1;
     }
@@ -666,7 +666,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
     //RSA_free( rsa );
     EVP_PKEY_free( evpKey );
     ERR_free_strings();
-    // free(md5Value);
+    // free(shaValue);
     // free(sig2);
     return 1;
 }
@@ -674,16 +674,16 @@ int verifySig(char *signatoryCertName, const char *clearText){
 /* vouch file */
 int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
     int num;
-    unsigned char *md5Value = NULL;
-    md5Value = malloc(MD5_DIGEST_LENGTH);
-    hashFile(md5Value, clearText);
+    unsigned char *shaValue = NULL;
+    shaValue = malloc(SHA_DIGEST_LENGTH);
+    hashFile(shaValue, clearText);
     unsigned char *sig = NULL;
     sig = malloc(128);
     sig[MAXSIZE] = (unsigned char) "\0";
     //printf("MD5:");
-    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    //for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     //printf("\n");
-    SSL_write(ssl,md5Value,sizeof(md5Value)*2);
+    SSL_write(ssl,shaValue,sizeof(shaValue)*2);
     num = SSL_read(ssl, sig, 128);
     if ( num <= 0 )
     {
@@ -709,7 +709,7 @@ int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
         printf("Signature file successfully written : %s\n", sig_name);
     }
     SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
-    // free(md5Value);
+    // free(shaValue);
     // free(sig);
     return 0;
 }
@@ -733,7 +733,7 @@ int hashFile(unsigned char* c, const char *fileName){
     while ((bytes = fread (data, 1, 1024, fp)) != 0)
     SHA1_Update (&shaContext, data, bytes);
     SHA1_Final (c,&shaContext);
-    //for(i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", c[i]);
+    //for(i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", c[i]);
     //printf (" %s\n", filename);
     fclose (fp);
     return 0;
