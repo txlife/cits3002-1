@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
     char buff[1024];
     SSL_CTX *ctx;
     SSL *ssl;
+    header h;
     //X509            *server_cert;
     //EVP_PKEY        *pkey;
 
@@ -136,24 +137,6 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-
-    if(VERIFY_CLIENT == ON){
-        /* Load the client certificate into the SSL_CTX structure */
-        if (SSL_CTX_use_certificate_file(ctx, RSA_CLIENT_CERT, SSL_FILETYPE_PEM) <= 0) {
-            ERR_print_errors_fp(stderr);
-            exit(EXIT_FAILURE);
-        }
-        /* Load the private-key corresponding to the client certificate */
-        if (SSL_CTX_use_PrivateKey_file(ctx, RSA_CLIENT_KEY, SSL_FILETYPE_PEM) <= 0) {
-            ERR_print_errors_fp(stderr);
-            exit(EXIT_FAILURE);
-        }
-        /* Check if the client certificate and private-key matches */
-        if (!SSL_CTX_check_private_key(ctx)) {
-            fprintf(stderr,"Private key does not match the certificate public key\n");
-            exit(EXIT_FAILURE);
-        }
-    }
     /* Load the RSA CA certificate into the SSL_CTX structure */
     /* This will allow this client to verify the server's     */
     /* certificate.                                           */
@@ -213,7 +196,6 @@ int main(int argc, char *argv[])
         printf("%s\n", target);
         FILE *fp;
         if ((fp = fopen(target, "r"))){
-            header h;
             h.action = ADD_FILE;
             h.file_size = get_file_size(fp);
             h.file_name = file_name;
@@ -222,6 +204,12 @@ int main(int argc, char *argv[])
             send_header(ssl, h);
             send_file(ssl, fp);
         } else {
+            h.action = FAIL_ERROR;
+            h.file_size = 0;
+            h.file_name = file_name;
+            h.certificate = "ssss";
+            h.circ = 0;
+            send_header(ssl, h);
             perror("fopen");
             exit(EXIT_FAILURE);
         }
@@ -249,6 +237,11 @@ int main(int argc, char *argv[])
             fprintf(stderr, "[CLIENT] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
+
+        if (h_recv.action == FAIL_ERROR) {
+            printf("Server reported protection rating for %s less than the requested %i\n", file_name, circumference);
+            exit(EXIT_FAILURE);
+        }
         char target[MAXSIZE];
         sprintf(target,"%s/%s", CLIENT_FILE_DIR, h_recv.file_name);            
         printf("Here\n");
@@ -259,21 +252,22 @@ int main(int argc, char *argv[])
         char target[MAXSIZE];
         sprintf(target, "%s/%s_crt.pem", CLIENT_CERT_DIR, file_name);
 
-        if (!check_if_file_exists(target)) {
-            printf("Can't locate cert: %s\n", target);
-            exit(EXIT_FAILURE);
-        }
-
         FILE *fp;
         if ((fp = fopen(target, "r"))){
-            header h;
             h.action = UPLOAD_CERT;
             h.file_size = get_file_size(fp);
             h.file_name = file_name;
             h.certificate = " ";
+            h.circ = circumference;
             send_header(ssl, h);
             send_file(ssl, fp);
         } else {
+            h.action = FAIL_ERROR;
+            h.file_size = 0;
+            h.file_name = file_name;
+            h.certificate = "ssss";
+            h.circ = 0;
+            send_header(ssl, h);
             perror("fopen");
             exit(EXIT_FAILURE);
         }
@@ -281,15 +275,12 @@ int main(int argc, char *argv[])
 
     /** List Files **/
     else if(list_flag){
-        header h;
         h.action = LIST_FILE;
         h.file_size = 0;
         h.file_name = " ";
         h.certificate = " ";
         h.circ = circumference;
         send_header(ssl, h);
-        printf("Listing Files in Server\n");
-        printf("|| Protected Status (circumference of ring = n): filename ||\n\n");
     	while(1){
     		memset(buffer, 0, sizeof(buffer));
     		//num = recv(socket_fd, buffer, sizeof(buffer),0);
@@ -308,10 +299,10 @@ int main(int argc, char *argv[])
 
     /* Vouch File */
     else if(vouch_flag){
-        header h;
         h.action = VOUCH_FILE;
         h.file_size = 0;
         h.file_name = file_name;
+        h.circ = 0;
         char certName[MAXSIZE];
         sprintf(certName, "%s_crt.pem", certificate);
         h.certificate = certName;
@@ -333,9 +324,9 @@ int main(int argc, char *argv[])
                 return 0;
                 // break;
         }
-        printf("MD5:");
-        for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
-        printf("\n");
+        //printf("MD5:");
+        //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+        //printf("\n");
         EVP_PKEY *evpKey;
         if ( (evpKey = EVP_PKEY_new()) == 0 ) {
             fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
@@ -395,10 +386,10 @@ int main(int argc, char *argv[])
             if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
             exit(1);
         }
-        printf("SIGNATURE:");
-        for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig1[i]);
-        printf("\n");
-        printf("SigLen: %i\n", (int)sigLen);
+        //printf("SIGNATURE:");
+        //for(int i = 0; i < (int)sigLen; i++) printf("%02x", sig1[i]);
+        //printf("\n");
+        //printf("SigLen: %i\n", (int)sigLen);
         //printf("got sig1 : %s\nlength: %i\n",sig1, sigLen);
         // send sig back - use header to notify server of file size?
         SSL_write(ssl,sig1,sigLen);
@@ -406,10 +397,10 @@ int main(int argc, char *argv[])
         RSA_free( rsa );
         EVP_PKEY_free( evpKey );
         ERR_free_strings();
-        free(md5Value);
-        free(sig1);
+        // free(md5Value);
+        // free(sig1);
         while(1){
-            memset(buffer, 0, sizeof(buffer));
+            //memset(buffer, 0, sizeof(buffer));
             //num = recv(socket_fd, buffer, sizeof(buffer),0);
             num = SSL_read(ssl, buffer, sizeof(buffer));
             if ( num <= 0 )
@@ -422,12 +413,13 @@ int main(int argc, char *argv[])
             buff[num] = '\0';
             printf("%s\n",buffer);
         }
+        free(md5Value);
+        free(sig1);
     }
     // vouchFile()
     // sign hash and send back to server (with cert??)
 
     else if (verify_flag){
-        header h;
         h.action = VERIFY_FILE;
         h.file_size = 0;
         h.file_name = file_name;
@@ -449,14 +441,12 @@ int main(int argc, char *argv[])
             printf("%s\n",buffer);
         }
     }  else if (findissuer_flag){
-        header h;
         h.action = FIND_ISSUER;
         h.file_size = 0;
         h.file_name = " ";
         h.certificate = certificate;
         send_header(ssl, h);
     }  else if (test_ringoftrust) {
-        header h;
         h.action = TEST_RINGOFTRUST;
         h.file_name = file_name;
         // char certName[MAXSIZE];

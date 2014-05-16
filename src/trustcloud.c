@@ -41,7 +41,7 @@ void receive_file(SSL *ssl, char *file_name, int file_size) {
 int recv_all(SSL *ssl, unsigned char *buf, int *len) { 
     int total = 0;        // how many bytes we've received
     int bytesleft = *len; // how many we have left to receive
-    int n;
+    int n = 0;
     while(total < *len) {
         n = SSL_read(ssl, buf+total, bytesleft);
         if (n == -1 || n == 0) { break; }
@@ -102,7 +102,7 @@ void send_file(SSL *ssl, FILE *fp) {
 int sendall(SSL *ssl, unsigned char *buf, int *len) {
     int total = 0;        // how many bytes we've sent
     int bytesleft = *len; // how many we have left to send
-    int n;
+    int n = 0;
     while(total < *len) {
         n = SSL_write(ssl, buf + total, bytesleft);
         if (n == -1) { break; }
@@ -131,7 +131,8 @@ void send_message(SSL *ssl, char *buffer) {
 }
 
 void send_header(SSL *ssl, header h) {
-    char head_buff[HEADER_SIZE];
+    char *head_buff= NULL;
+    head_buff = malloc(HEADER_SIZE);
     if (   h.action != ADD_FILE 
         && h.action != FETCH_FILE 
         && h.action != LIST_FILE 
@@ -139,34 +140,23 @@ void send_header(SSL *ssl, header h) {
 		&& h.action != VERIFY_FILE
 		&& h.action != UPLOAD_CERT
         && h.action != FIND_ISSUER 
-        && h.action != TEST_RINGOFTRUST) {
+        && h.action != TEST_RINGOFTRUST
+        && h.action != FAIL_ERROR) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
-    // pack header into string, using new line characters as delimiters
-    char *head_buff_loc = head_buff;
-    sprintf(head_buff_loc, "%d\n", (short)h.action);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
-    sprintf(++head_buff_loc, "%d\n", (int)h.file_size);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+
     char *file_name = h.file_name;
     if (file_name[strlen(file_name) - 1] == '\0') 
         file_name[strlen(file_name) - 1] = '\n';
-    sprintf(++head_buff_loc, "%s\n", file_name);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
+    
     char *certificate = h.certificate;
     if (certificate[strlen(certificate) - 1] == '\0') 
         certificate[strlen(certificate) - 1] = '\n';
-    sprintf(++head_buff_loc, "%s\n", h.certificate);
-    while (*head_buff_loc != '\n' && *head_buff_loc != '\0') head_buff_loc++;
-    sprintf(++head_buff_loc, "%i\n", h.circ);
+    
 
-    head_buff_loc += 1 + strlen(certificate);
-
-    while (head_buff_loc < head_buff + HEADER_SIZE - 1) {
-        *head_buff_loc = '\0';
-        head_buff_loc++;
-    }
+    sprintf(head_buff,"%d\n%d\n%s\n%s\n%i\n",(short)h.action,(int)h.file_size,file_name,h.certificate,h.circ);
+    head_buff[HEADER_SIZE]= (char)'\0';
 
     printf("Sending header buff:\n %s\n", head_buff);
     int len = HEADER_SIZE;
@@ -175,6 +165,7 @@ void send_header(SSL *ssl, header h) {
         fprintf(stderr, "Error sending header\n");
         exit(EXIT_FAILURE);
     }
+    //free(head_buff);
 }   
 
 int unpack_header_string(char *head_string, header *h) {
@@ -212,8 +203,19 @@ int unpack_header_string(char *head_string, header *h) {
                 break;
         }
     }
-
     return 0;
+}
+
+/**
+ * From cboard.cprogramming.com/c-programming/95462-compiler-error-warning-implicit-declaration-function-'strdup'.html
+ */
+char *strdup(const char *str) {
+	int n = strlen(str) + 1;
+	char *dupStr = malloc(n);
+	if (dupStr) {
+		strcpy(dupStr, str);
+	}
+	return dupStr;
 }
 
 /**server list current dir files
@@ -233,7 +235,6 @@ size_t file_list(const char *path, char ***ls) {
     while((ep=readdir(dp))!= NULL){
         char curFileName[MAXSIZE];
         sprintf(curFileName, "%s",ep->d_name);
-        struct stat stbuf;
         if(!strcmp(ep->d_name,"..")||!strcmp(ep->d_name,".")){
             continue;
         }
@@ -247,7 +248,6 @@ size_t file_list(const char *path, char ***ls) {
     while((ep = readdir(dp))!= NULL){
         char curFileName[MAXSIZE];
         sprintf(curFileName, "%s", ep->d_name);
-        struct stat stbuf ;
         if(!strcmp(ep->d_name,"..")||!strcmp(ep->d_name,".")){
             continue;
         }
@@ -522,24 +522,23 @@ int verifySig(char *signatoryCertName, const char *clearText){
     printf("-----start verify-----\n");
     EVP_PKEY *evpKey;
     //RSA *rsa;
-    unsigned char *md5Value = NULL;
-    md5Value = malloc(MD5_DIGEST_LENGTH);
+    unsigned char *shaValue = NULL;
+    shaValue = malloc(SHA_DIGEST_LENGTH);
     char clear_text_loc[MAXSIZE];
     if (isNameCertFile(clearText)) {
         sprintf(clear_text_loc, "%s/%s", SERVER_CERT_DIR, clearText);
     } else {
         sprintf(clear_text_loc, "%s/%s", SERVER_FILE_DIR, clearText);
     }
-    hashFile(md5Value, clear_text_loc);
-    printf("MD5:");
-    for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    hashFile(shaValue, clear_text_loc);
+    printf("SHA:");
+    for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     printf("\n");
-    //printf("Incorrect MD5: %s\n", md5Value);
     if ( (evpKey = EVP_PKEY_new()) == 0 ) {
         fprintf( stderr, "Couldn't create new EVP_PKEY object.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+        return -1;
     }
 
     /* get private key file */
@@ -566,8 +565,8 @@ int verifySig(char *signatoryCertName, const char *clearText){
     FILE* fp;
     fp = fopen( certificate, "r" );
     if ( fp == 0 ) {
-    fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
-    exit(1);
+        fprintf( stderr, "Couldn't open RSA public key: '%s'. %s\n",certificate, strerror(errno) );
+        return -1;
     }
     X509 * xcert = PEM_read_X509(fp, NULL, NULL, NULL);
     if (!xcert) {
@@ -583,7 +582,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
         fprintf( stderr, "Couldn't create EVP context.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+        return -1;
     }
 
 
@@ -591,15 +590,12 @@ int verifySig(char *signatoryCertName, const char *clearText){
         fprintf( stderr, "Couldn't exec EVP_VerifyInit.\n" );
         unsigned long sslErr = ERR_get_error();
         if ( sslErr ) fprintf(stderr, "%s\n", ERR_error_string(sslErr, 0));
-        exit(1);
+        return -1;
     }
 
-    if(!EVP_VerifyUpdate( evp_ctx, (const char *)md5Value, sizeof(md5Value))){
-
-               printf("EVP_VerifyUpdate error. \n");
-
-               exit(1);
-
+    if(!EVP_VerifyUpdate( evp_ctx, (const char *)shaValue, sizeof(shaValue))){
+       printf("EVP_VerifyUpdate error. \n");
+       return -1;
     }
     //printf("ClearText:%s\n",clearText);
     //memset(sig, 0, MAXSIZE+1024);
@@ -623,24 +619,24 @@ int verifySig(char *signatoryCertName, const char *clearText){
     //RSA_free( rsa );
     EVP_PKEY_free( evpKey );
     ERR_free_strings();
-    free(md5Value);
-    free(sig2);
+    // free(shaValue);
+    // free(sig2);
     return 1;
 }
 
 /* vouch file */
 int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
     int num;
-    unsigned char *md5Value = NULL;
-    md5Value = malloc(MD5_DIGEST_LENGTH);
-    hashFile(md5Value, clearText);
+    unsigned char *shaValue = NULL;
+    shaValue = malloc(SHA_DIGEST_LENGTH);
+    hashFile(shaValue, clearText);
     unsigned char *sig = NULL;
     sig = malloc(128);
-    sig[MAXSIZE] = (unsigned char) "\0";
+    sig[MAXSIZE] = (unsigned char) '\0';
     //printf("MD5:");
-    //for(int i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", md5Value[i]);
+    //for(int i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", shaValue[i]);
     //printf("\n");
-    SSL_write(ssl,md5Value,sizeof(md5Value)*2);
+    SSL_write(ssl,shaValue,sizeof(shaValue)*2);
     num = SSL_read(ssl, sig, 128);
     if ( num <= 0 )
     {
@@ -666,8 +662,8 @@ int vouchFile(char *signatorysCertName, const char *clearText, SSL *ssl){
         printf("Signature file successfully written : %s\n", sig_name);
     }
     SSL_write(ssl,"From Server : Vouching File Succeeded",strlen("From Server : Vouching File Succeeded"));
-    free(md5Value);
-    free(sig);
+    // free(shaValue);
+    // free(sig);
     return 0;
 }
 
@@ -690,7 +686,7 @@ int hashFile(unsigned char* c, const char *fileName){
     while ((bytes = fread (data, 1, 1024, fp)) != 0)
     SHA1_Update (&shaContext, data, bytes);
     SHA1_Final (c,&shaContext);
-    //for(i = 0; i < MD5_DIGEST_LENGTH; i++) printf("%02x", c[i]);
+    //for(i = 0; i < SHA_DIGEST_LENGTH; i++) printf("%02x", c[i]);
     //printf (" %s\n", filename);
     fclose (fp);
     return 0;
@@ -706,15 +702,13 @@ int check_if_file_exists(const char *file_name) {
 /**
  * Check if this sig file is for your clear text file (filename)
  *     naming convention is: filename_signingCertName.sig
- * @param  fileName [description]
- * @param  sigName  [description]
- * @return          [description]
  */
 int checkSigFileName(char *fileName, char *sigFileName) {
     if (strlen(fileName) > strlen(sigFileName)) return 0;
 
-    char *fileNamePortionOfSigName = malloc(strlen(fileName));
+    char *fileNamePortionOfSigName = malloc(strlen(fileName) + 1);
     strncpy(fileNamePortionOfSigName, sigFileName, strlen(fileName));
+    fileNamePortionOfSigName[strlen(fileName)] = '\0';
     if (strcmp(fileName, fileNamePortionOfSigName) == 0) return 1;
     else return 0;
 }
@@ -742,7 +736,6 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         fclose(startCertFp);
         return 1;
     }
-
     //loop through the directory
     struct dirent *dp;
     DIR *dfd;
@@ -768,7 +761,7 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         }
 
         // skip sub directories
-        if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        if (S_ISDIR(stbuf.st_mode))
         {
             continue;
         }
@@ -789,14 +782,25 @@ int checkSigFileName(char *fileName, char *sigFileName) {
 
         // open current cert (from list) as issuer
         X509 *curCert = PEM_read_X509(curCertFP, NULL, NULL, NULL);
+
+	if (!curCert) {
+		fprintf(stderr, "Couldn't read certificat: %s\n", curCertName);
+		exit(EXIT_FAILURE);
+	}
+
         if(strcmp(certificateName, curCertName) != 0
             && X509_check_issued(curCert, startCert) == X509_V_OK) {
             (*numIssuers)++;
-            realloc(*issuerNames, sizeof(*issuerNames) * (*numIssuers));
+            *issuerNames = realloc(*issuerNames, sizeof(*issuerNames) * (*numIssuers) + 1);
+	    if (!(*issuerNames)) {
+	   	fprintf(stderr, "Couldn't allocate for issuerNames\n"); 
+		exit(EXIT_FAILURE);
+	    }
             // issuerNameInd++;
             // issuerNameInd = issuerNames + *numIssuers - 1;
-            *issuerNames[*numIssuers - 1] = malloc(strlen(curCertName));
-            strcpy(*issuerNames[*numIssuers - 1], curCertName);
+            (*issuerNames)[*numIssuers - 1] = malloc(strlen(curCertName));
+            //printf("%s\n", curCertName);
+            strcpy((*issuerNames)[*numIssuers - 1], curCertName);
             // return 1;
         }
         fclose(curCertFP);
@@ -845,27 +849,44 @@ int getNumCertsInDir(char *dir) {
     }
 
     int count = 0;
+    // skip sub directories
+    // if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
     // first get file count
     while ((dp = readdir(dfd)) != NULL) {
-        if (dp->d_type == DT_REG) {
-            if (isNameCertFile(dp->d_name)) count++;
-        }
+        struct stat stbuf ;
+	char entryLoc[MAXSIZE];
+	sprintf(entryLoc, "%s/%s", SERVER_CERT_DIR, dp->d_name);
+	    if( stat(entryLoc,&stbuf) == -1 )
+	    {
+		printf("Unable to stat file: %s\n",entryLoc) ;
+		continue ;
+	    }
+
+	    if (S_ISDIR(stbuf.st_mode)) continue;
+        
+          if (isNameCertFile(dp->d_name)) count++;
     }
     return count;
 }
 
 // to find longest cycle: 
 //      find deepest node that signed root node
-void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength) {
+void dfs(int v, int ***adj, int *visited[], int startCertInd, int numCerts, int **cycle, int *cycleLength, int depth, int **parents, int *deepestNode) {
     // for longest, maybe only set visited[v] = 1 if v != startCertInd, so we can visit startCertInd again.
     //      but we should only be able to visit startCertInd again if it is the final node... (not sure)
     (*visited)[v] = 1;
     (*cycleLength)++;
     (*cycle)[*cycleLength - 1] = v;
+
+    if (depth > *deepestNode && (*adj)[v][startCertInd] && v != startCertInd) {
+        *deepestNode = v;
+    }
     int i;
     for (i = 0; i < numCerts; i++) {
         if ((*adj)[v][i] > 0 && (*visited)[i] == 0) {
-            dfs(i, adj, visited, startCertInd, numCerts, cycle, cycleLength);
+            (*parents)[i] = v;
+
+            dfs(i, adj, visited, startCertInd, numCerts, cycle, cycleLength, depth + 1, parents, deepestNode);
         }
     }
     return;
@@ -908,8 +929,8 @@ int getProtectionRating(char *fileName) {
             strncpy(certName, dp->d_name + strlen(fileName) + 1, 
                 certNameStrLen);
             certName[certNameStrLen] = '\0';
-            printf("Checking ring of trust for: %s\n", certName);
             int certsROT = ringOfTrust(certName);
+            printf("Ring of trust for: %s signed by %s is %i\n", fileName, certName, certsROT);
             maxRingOfTrust = maxRingOfTrust <= certsROT ? certsROT : maxRingOfTrust;
         }
     }
@@ -1006,7 +1027,8 @@ int ringOfTrust(char *startCertificate) {
         }
 
         // skip sub directories
-        if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        // if ( ( stbuf.st_mode & S_IFMT ) == S_IFDIR )
+        if (S_ISDIR(stbuf.st_mode))
         {
             continue;
         }
@@ -1021,19 +1043,19 @@ int ringOfTrust(char *startCertificate) {
         i++;
     }
     // print mapping for debugging
-    printf("Indexing Schematic:\n");
-    for (i = 0; i < numberCerts; i++) {
-        printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
-    }
+//    printf("Indexing Schematic:\n");
+//    for (i = 0; i < numberCerts; i++) {
+//         printf("%s --> %i\n", certIndexMap[i]->certName, certIndexMap[i]->i);
+//    }
 
-    printf("\nBuilding signatory graph:\n");
+//     printf("\nBuilding signatory graph:\n");
 
     // build adjacency matrix
     for (i = 0; i < numberCerts; i++) {
         char cert[MAXSIZE];
         strcpy(cert, certIndexMap[i]->certName);
         char **issuers;
-        int numIssuers;
+        int numIssuers = 0;
 
         // Find issuer of cert, and get all certificates this issuer owns
         // because we trust ANY higher issuer that signed any of our issuer's
@@ -1047,10 +1069,10 @@ int ringOfTrust(char *startCertificate) {
 
                 // at the moment skip self signed certs - not sure if this is correct though
                 if (strcmp(cert, issue_noDirStr) == 0) continue;
-                int ci = getIndexOf(cert, certIndexMap, numberCerts);
-                int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts);
+                int ci = getIndexOf(cert, certIndexMap, numberCerts); // child cert
+                int pi = getIndexOf(issue_noDirStr, certIndexMap, numberCerts); // parent cert
                 adj[ci][pi] = 1;  
-                printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
+ //               printf("\t%s --issued--> %s (%i ---> %i)\n", issue_noDirStr, cert, pi, ci);          
             }
         }
     }
@@ -1059,34 +1081,47 @@ int ringOfTrust(char *startCertificate) {
     visited = malloc(sizeof(int *) * numberCerts);
     int *cycle;
     cycle = malloc(sizeof(int *) * numberCerts);
+    int *parents;
+    parents = malloc(sizeof(int) * numberCerts);
     for (i = 0; i < numberCerts; i++) {
         cycle[i] = 0;
         visited[i] = 0;
+        parents[i] = -1;
     }
 
     int cycleLength = 0;
+    int deepestNode = -1;
 
     int startCertInd = getIndexOf(startCertificate, certIndexMap, numberCerts);
     // search algorithm for cycle commence here
     printf("Begin DFS\n");
-    dfs(startCertInd, &adj, &visited, startCertInd, numberCerts, &cycle, &cycleLength);
-
-    for (i = 0; i < cycleLength; i++) {
-        printf("%s(%i) <-- ", getNameOfCert(cycle[i], certIndexMap, numberCerts),cycle[i]);
+    dfs(startCertInd, &adj, &visited, startCertInd, numberCerts, &cycle, &cycleLength, 0, &parents, &deepestNode);
+    if (deepestNode == -1) return 0;
+    // for (i = 0; i < cycleLength; i++) {
+    int vert = deepestNode;
+    int cycycy = 0;
+    printf("DeepestNode: %s\n", getNameOfCert(vert, certIndexMap, numberCerts));
+    while (vert != -1) {
+         printf("%s(%i) --> ", getNameOfCert(vert, certIndexMap, numberCerts), vert);
+        cycycy++;
+        vert = parents[vert];
     }
 
+    // for ()
+    // while
+
     // check for complete cycle
-    if (adj[cycle[cycleLength - 1]][startCertInd]) {
-        printf("%s(%i)", getNameOfCert(startCertInd, certIndexMap, numberCerts), startCertInd); cycleLength++;
-        cycleLength--;
+    // if (adj[cycle[cycleLength - 1]][startCertInd]) {
+    if (adj[deepestNode][startCertInd]) {
+        // printf("%s(%i)", getNameOfCert(startCertInd, certIndexMap, numberCerts), startCertInd); cycleLength++;
     } else { // there's no cycle!
-        cycleLength = 0;
+        cycycy = 0;
     }
 
     printf("\nEnd DFS\n");
-    printf("Ring of trust circumference: %i\n", cycleLength);
+    printf("Ring of trust circumference: %i\n", cycycy);
     fclose(fp);
-    return cycleLength;
+    return cycycy;
 }
 
  /*
