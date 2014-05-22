@@ -18,37 +18,46 @@ Server usage:
 	./server
 
 Client usage:
-	-a filename (add file to trustcloud)
+  -a filename 
+  (add file to trustcloud)
 
-		./client -h 127.0.0.1:3490 -a bom.html
+  	./client -h 127.0.0.1:3490 -a bom.html
 
-	-c number (provide circumference of ring of trust)
-		(currently only implemented to be used alongside other flags, i.e. -f and -l)
+  -c number 
+  (provide circumference of ring of trust)
+    (currently only implemented to be used alongside 
+      other flags, i.e. -f and -l)
 
-	-f filename (fetch file filename from the server)
+  -f filename 
+  (fetch file filename from the server)
 
-		./client -h 127.0.0.1:3490 -f bom.html [-c 3]
+  	./client -h 127.0.0.1:3490 -f bom.html [-c 3]
 
-	-h hostname:port (specify hostname to connect on)
-		NOTE: Current server implementation only uses 3490 port
+  -h hostname:port (specify hostname to connect on)
+  	NOTE: Current server implementation only uses 3490 port
 
-		./client -h 127.0.0.1:3490
+  	./client -h 127.0.0.1:3490
 
-	-l 	(list all stored files and how they are protected)
-		
-		./client -h 127.0.0.1:3490 -l [-c 3]
+  -l 	
+  (list all stored files and how they are protected)
+  	
+  	./client -h 127.0.0.1:3490 -l [-c 3]
 
-	-u certificate (upload certificate)
-		NOTE: client certificates should be stored in client_certs, alongside their key
-			files with the format: 
-				A_key.pem (private key)
-				A_crt.pem (certificate)
+  -u certificate (upload certificate)
+  	NOTE: client certificates should be stored in 
+            client_certs, alongside their key files with the format:
 
-		./client -h 127.0.0.1:3490 -u A 	(use only unique identifier part of the name)
+  			A_key.pem (private key)
+  			A_crt.pem (certificate)
 
-	-v filename certificate (vouch for authenticity of existing file on trustserver using indicated cert)
+  	./client -h 127.0.0.1:3490 -u A 	
+    (use only unique identifier part of the name)
 
-		./client -h 127.0.0.1:3490 -v bom.html A	(again only use unique id of certificate)
+  -v filename certificate 
+  (vouch for authenticity of existing file on trustserver using indicated cert)
+
+  	./client -h 127.0.0.1:3490 -v bom.html A	
+    (again only use unique id of certificate)
 
 ====================================================================
 CHANGE LOG
@@ -57,9 +66,9 @@ CHANGE LOG
 [22 May 2014] Adapted trustcloud.c to match protocol defined in 
 							communicationProtocol.txt
 
-							+ All changes occur in send_header and unpack header. 
-							+ unpack_header now sends confirmation message (if it is not
-								unpacking a confirmation message already)
-							+ send_header waits for confirmation message before proceeding
-							+ This way we have the ability to communicate with server/client
-							  that does not match in implementation. 
+    + All changes occur in send_header and unpack header. 
+    + unpack_header now sends confirmation message (if it is not
+    	unpacking a confirmation message already)
+    + send_header waits for confirmation message before proceeding
+    + This way we have the ability to communicate with server/client
+      that does not match in implementation. 
