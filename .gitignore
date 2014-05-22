@@ -22,5 +22,4 @@
 
 *.txt
 
-server
-client
+server_sigs/*
