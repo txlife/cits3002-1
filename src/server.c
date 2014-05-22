@@ -85,7 +85,8 @@ int main()
         /* Waiting for client to connect */
         if ((client_fd = accept(socket_fd, (struct sockaddr *)&dest, &size))==-1 ) {
             perror("accept");
-            exit(EXIT_FAILURE);
+            continue;
+            //exit(EXIT_FAILURE);
         }
         else{
             printf("Server got connection from client %s, port %d, socket %d\n", inet_ntoa(dest.sin_addr),ntohs(dest.sin_port),client_fd);
@@ -99,8 +100,11 @@ int main()
         /* Build up SSL connection */
         if(SSL_accept(ssl) == -1){
             perror("accept");
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
             close(client_fd);
-            exit(EXIT_FAILURE);
+            continue;
+            //exit(EXIT_FAILURE);
         }
 
 
@@ -110,41 +114,105 @@ int main()
         char header_buf[HEADER_SIZE];
         int len = HEADER_SIZE;
         if ((num = recv_all(ssl, (unsigned char *)header_buf, &len))== -1) {
-                perror("recv");
-                exit(EXIT_FAILURE);
+            printf("Read header failed\n");
+            perror("recv");
+            SSL_shutdown(ssl);
+            SSL_free(ssl);
+            close(client_fd);
+            continue;
+            //exit(EXIT_FAILURE);
+        }
+
+        char *hr = NULL;
+        hr = malloc(3);
+        SSL_read(ssl, hr, sizeof(hr));
+        if(strcmp("100",hr)){
+            printf("Header receiving failed\n");
+            SSL_write(ssl,"-1",strlen("-1"));
+            /* Close SSL Connection */
+            SSL_shutdown(ssl);
+            /* Release SSL */
+            SSL_free(ssl);
+            //Close Connection Socket
+            close(client_fd);
+            continue;
+        }
+        else{
+            printf("Header received successfully\n");
         }
         /* unpack header string */
         header h;
         if (unpack_header_string(header_buf, &h) == -1) {
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
-            exit(EXIT_FAILURE);
+            h.action = FAIL_ERROR;
+            //exit(EXIT_FAILURE);
         }
 
-        printf("HEADER ACTION %i\n", h.action);
+        if (h.action == FAIL_ERROR) {
+            printf("Header action is FAIL ERROR\n");
+            SSL_write(ssl,"-1",strlen("-1"));
+            /* Close SSL Connection */
+            SSL_shutdown(ssl);
+            /* Release SSL */
+            SSL_free(ssl);
+            //Close Connection Socket
+            close(client_fd);
+            continue;
+        }
+
+        //inform client header unpacked successfully
+        SSL_write(ssl,"100",strlen("100"));
+        printf("Header unpacked successfully\n");
 
 		// header part end
 	    // if client requests to uplaod file
     	if (h.action == ADD_FILE) {
-    		char target[MAXSIZE];
+    		char *target = NULL;
+            target = malloc(BLOCK_SIZE);
     		sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
     		printf("[SERVER] Adding file %s\n", target);
     		receive_file(ssl, target, h.file_size);
+            free(target);
     	} else if (h.action == FETCH_FILE) {
-            char target[BLOCK_SIZE];
+            char *target = NULL;
+            target = malloc(BLOCK_SIZE);
             sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
             printf("[SERVER] Fetching file %s\n", target);
             FILE *fp;
             if (!(fp = fopen(target, "r"))) {
                 perror("fopen");
-                exit(EXIT_FAILURE);
+                /* Close SSL Connection */
+                SSL_shutdown(ssl);
+                /* Release SSL */
+                SSL_free(ssl);
+                //Close Connection Socket
+                close(client_fd);
+                continue;
+                //exit(EXIT_FAILURE);
             }
+            free(target);
+
+            // get file's protection rating to compare to 
+            // client's requested circumference 
+            int protectionRating = getProtectionRating(h.file_name);
+
             header h_send;
-            h_send.action = ADD_FILE;
+
+            if (protectionRating >= h.circ) {    
+                h_send.action = ADD_FILE;
+            } else {
+                h_send.action = FAIL_ERROR; // client will fail out
+            }
+
+
             h_send.file_size = get_file_size(fp);
             h_send.file_name = h.file_name;
             h_send.certificate = " ";
             send_header(ssl, h_send);
-            send_file(ssl, fp);
+
+            if (protectionRating >= h.circ) 
+                send_file(ssl, fp);
+            fclose(fp);
         }  else if (h.action == UPLOAD_CERT) {
             char target[MAXSIZE];
             sprintf(target, "%s/%s_crt.pem", SERVER_CERT_DIR, h.file_name);
@@ -156,14 +224,17 @@ int main()
     		size_t count;
     		unsigned int i;
     		count = file_list(SERVER_FILE_DIR, &files);
-    		printf("There are %zu files in the directory,transmitting file list.\n", count);
     		for (i = 0; i < count; i++) {
-                char send_str[MAXSIZE];
+                char *send_str = NULL;
+                send_str = malloc(MAXSIZE);
                 int protectionRating = getProtectionRating(files[i]);
-                sprintf(send_str, "Verified (c = %i): %s",
-                                         protectionRating,files[i]);
-
+                if (protectionRating >= h.circ) {
+                    sprintf(send_str, "Protected (c = %i): %s",protectionRating,files[i]);
+                } else {
+                    sprintf(send_str, "Unprotected (c = %i): %s",protectionRating,files[i]);
+                }
                 send_message(ssl, send_str);
+                free(send_str);
     		}
     		printf("File list transmitting completed.\n");
     		close(client_fd);
@@ -179,34 +250,60 @@ int main()
             int isCertFile = isNameCertFile(clearTextFileName);
             // vouch using this certificate
             char *certificate_file_name = h.certificate;
-            char cert_loc[MAXSIZE];
+            char *cert_loc = NULL;
+            cert_loc = malloc(MAXSIZE);
             sprintf(cert_loc, "%s/%s", SERVER_CERT_DIR, certificate_file_name);
-
             if (!check_if_file_exists(cert_loc)) {
-                char message[MAXSIZE];
+                char *message = NULL;
+                message = malloc(MAXSIZE);
                 sprintf(message, "Unable to locate %s certificate on the server. Please upload using -a\n", cert_loc);
-                send_message(ssl, message);
+                SSL_write(ssl, message,strlen(message));
+                free(message);
+                /* Close SSL Connection */
+                SSL_shutdown(ssl);
+                /* Release SSL */
+                SSL_free(ssl);
+                //Close Connection Socket
+                close(client_fd);
+                continue;
                 // should notify client here somehow
             }
-
-            char target[BLOCK_SIZE];
+            else{
+                char *message = NULL;
+                message = malloc(MAXSIZE);
+                sprintf(message, "Located %s certificate on the server. \n", cert_loc);
+                SSL_write(ssl, message,strlen(message));
+                free(message);
+            }
+            free(cert_loc);
+            char *target = NULL;
+            target = malloc(MAXSIZE);
 
             if (isCertFile) {
                 sprintf(target, "%s/%s", SERVER_CERT_DIR, h.file_name);
             } else {
                 sprintf(target, "%s/%s", SERVER_FILE_DIR, h.file_name);
             }
-
             unsigned char *md5Value = NULL;
             md5Value = malloc(MD5_DIGEST_LENGTH);
-            hashFile(md5Value, (const char *)target);
+            if(hashFile(md5Value, (const char *)target)!=0){
+                printf("Couldn't open file");
+                free(target);
+                /* Close SSL Connection */
+                SSL_shutdown(ssl);
+                /* Release SSL */
+                SSL_free(ssl);
+                //Close Connection Socket
+                close(client_fd);
+                continue;
+            }
+            free(target);
             send_message(ssl, (char *)md5Value);
 
             unsigned char signature[MAXSIZE];
-            
             SSL_read(ssl, signature, 128);
-
-            char sig_name[MAXSIZE];
+            char *sig_name = NULL;
+            sig_name = malloc(MAXSIZE);
 
             // keep certificate signatures with certificates
             if (isCertFile) {
@@ -215,11 +312,24 @@ int main()
                 sprintf(sig_name, "%s/%s_%s.sig", SERVER_SIG_DIR, clearTextFileName, certificate_file_name);
             }
 
-            printf("Sig loc: %s\n", sig_name);
             if (writeSig(signature, sig_name) != 0) {
                 fprintf(stderr, "Could not save signature file\n");
-                exit(EXIT_FAILURE);
+                free(sig_name);
+                SSL_write(ssl,"-1",strlen("-1"));
+                /* Close SSL Connection */
+                SSL_shutdown(ssl);
+                /* Release SSL */
+                SSL_free(ssl);
+                //Close Connection Socket
+                close(client_fd);
+                continue;
+                //exit(EXIT_FAILURE);
             }
+            else{
+                printf("Sig loc: %s\n", sig_name);
+                SSL_write(ssl,"100",strlen("100"));
+            }
+            free(sig_name);
         }
 
         else if (h.action == VERIFY_FILE){ // test verification of signature files

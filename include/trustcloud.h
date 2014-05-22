@@ -34,6 +34,7 @@
 #include <openssl/bio.h>
 
 /** Operation Header Action Descriptor Flag Definitions **/
+#define FAIL_ERROR -1
 #define ADD_FILE 0
 #define FETCH_FILE 1
 #define	LIST_FILE 2
@@ -42,6 +43,7 @@
 #define UPLOAD_CERT 5
 #define FIND_ISSUER 6
 #define TEST_RINGOFTRUST 7
+#define SUCCESSFUL 100
 
 #define PORT 3490
 #define MAXSIZE 1024
