@@ -1,0 +1,52 @@
+Authors:
+	21006694 Monty Galloway
+	21072553 Jiangyu Wang
+
+====================================================================
+
+Test certificates provided in client_certs/server_certs were sourced from the student help forum for 
+CITS3002, these are not our own work and have been used for testing only.
+
+====================================================================
+Useage Examples
+====================================================================
+Server binary can be run from server directory, client binary from client directory.
+		(Not a perfect edition)
+
+Server usage: 
+
+	./server
+
+Client usage:
+	-a filename (add file to trustcloud)
+
+		./client -h 127.0.0.1:3490 -a bom.html
+
+	-c number (provide circumference of ring of trust)
+		(currently only implemented to be used alongside other flags, i.e. -f and -l)
+
+	-f filename (fetch file filename from the server)
+
+		./client -h 127.0.0.1:3490 -f bom.html [-c 3]
+
+	-h hostname:port (specify hostname to connect on)
+		NOTE: Current server implementation only uses 3490 port
+
+		./client -h 127.0.0.1:3490
+
+	-l 	(list all stored files and how they are protected)
+		
+		./client -h 127.0.0.1:3490 -l [-c 3]
+
+	-u certificate (upload certificate)
+		NOTE: client certificates should be stored in client_certs, alongside their key
+			files with the format: 
+				A_key.pem (private key)
+				A_crt.pem (certificate)
+
+		./client -h 127.0.0.1:3490 -u A 	(use only unique identifier part of the name)
+
+	-v filename certificate (vouch for authenticity of existing file on trustserver using indicated cert)
+
+		./client -h 127.0.0.1:3490 -v bom.html A	(again only use unique id of certificate)
+
