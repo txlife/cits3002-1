@@ -34,10 +34,10 @@ SERV_OBJ = $(addprefix $(OBJ_DIR), $(_SERV_OBJ))
 all: $(CLIENT_PROJ) $(SERV_PROJ)
 
 $(CLIENT_PROJ): $(CLIENT_OBJ) $(TRUST_OBJ)
-	$(CXX) $(LDFLAGS) -o $(CLIENT_PROJ) $^
+	$(CXX) $(LDFLAGS) -o ./client/$(CLIENT_PROJ) $^
 
 $(SERV_PROJ): $(SERV_OBJ) $(TRUST_OBJ)
-	$(CXX) $(LDFLAGS) -o $(SERV_PROJ) $^
+	$(CXX) $(LDFLAGS) -o ./server/$(SERV_PROJ) $^
 
 $(TRUST_OBJ): $(TRUST_SRC) $(INCLUDE)
 	$(CXX) -c $(CFLAGS) -o $@ $(INC_FLAGS) $<
@@ -49,4 +49,4 @@ $(CLIENT_OBJ): $(CLIENT_SRC)
 	$(CXX) -c $(CFLAGS) -o $@ $(INC_FLAGS) $<
 
 clean:
-	rm $(CLIENT_PROJ) $(SERV_PROJ) $(SERV_OBJ) $(CLIENT_OBJ) $(TRUST_OBJ)
+	rm ./client/$(CLIENT_PROJ) ./server/$(SERV_PROJ) $(SERV_OBJ) $(CLIENT_OBJ) $(TRUST_OBJ)

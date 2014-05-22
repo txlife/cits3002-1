@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
         // be just binary data so not valid to add a null byte.
         // If this is just to use strlen later to get sig size, 
         // then we should use another way 
-        sig1[EVP_PKEY_size(evpKey)] = (unsigned char) "\0";
+        sig1[EVP_PKEY_size(evpKey)] = (unsigned char) '\0';
         /* encrypt hash with client's private key */
         if ( EVP_SignFinal( evp_ctx, sig1, &sigLen, evpKey ) == 0 ) {
             fprintf( stderr, "Couldn't calculate signature.\n" );
