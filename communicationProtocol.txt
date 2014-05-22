@@ -1,0 +1,74 @@
+HEADER COMMUNICATION PROTOCOL
+=============================
+
+--------------------------------------------------------------------------------
+1.0 Protocol Overview
+--------------------------------------------------------------------------------
+
+This document describes a protocol for communication between server/client.
+
+The first point of contact from server (or client) to client (or server) should
+always be a message of data that may be interpreted as a string (char array). 
+The format of this message is described in Section 2.0
+
+The immediate response should be a confirmation message (Section 3.0), to 
+confirm that the implementation of the requested operation exists.
+
+--------------------------------------------------------------------------------
+2.0 Header
+--------------------------------------------------------------------------------
+
+2.1 Header Format
+
+The initial header message should be contained in a string. The header itself,
+is a combination of parameters to communicate the required action, and
+additional information such as file names, file sizes etc. Specifically, the
+current required parameters are (in required order):
+
+  1) action:           action
+  2) file size:        size of the file being transferred
+  3) file name:        name of the file being transferred
+  4) certificate name: name of certificate used for vouching a file 
+                      or uploading certificates
+  5) circumference:    required ring of trust circumference
+
+These parameters should be packed into a char array, each being separated by a
+new line character ('\n'). The entire header should be terminated with a null 
+byte ('\0').
+
+If a parameter is not being used, it should be replaced by placeholder text such 
+as a space ("  "). 
+
+The string below is an example of a header message string:
+
+    "2\n1024\nfile.txt\ncertificate_pub.pem\n2\n\0"
+
+2.2 Action Parameter
+
+It should be possible to interpret the action parameter as a short integer, as 
+defined by the following convention:
+
+    |ADD_FILE      |     0|
+    |FETCH_FILE    |     1|
+    |LIST_FILE     |     2|
+    |VOUCH_FILE    |     3|
+    |UPLOAD_CERT   |     5|
+ 
+--------------------------------------------------------------------------------
+3.0 Confirmation Message
+--------------------------------------------------------------------------------
+
+After every header that is received, the client (or server) should respond with 
+a string message, containing a flag to acknowledge implementation of the 
+requested action. The flags should be short integers packed into string
+representation, and should follow the following convention:
+
+    |FAIL_ERROR    |    -1|
+    |SUCCESS       |   100|
+
+The string format should contain the flag number, followed by a null byte 
+('\0'). For example:
+  
+    "100\0"
+
+The client/server should respond to these acknowledgments accordingly. 
