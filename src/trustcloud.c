@@ -158,12 +158,26 @@ void send_header(SSL *ssl, header h) {
     sprintf(head_buff,"%d\n%d\n%s\n%s\n%i\n",(short)h.action,(int)h.file_size,file_name,h.certificate,h.circ);
     head_buff[HEADER_SIZE]= (char)'\0';
 
-    printf("Sending header buff:\n %s\n", head_buff);
+    //printf("Sending header buff:\n %s\n", head_buff);
     int len = HEADER_SIZE;
     sendall(ssl, (unsigned char *)head_buff, &len);
     if (len < HEADER_SIZE) {
         fprintf(stderr, "Error sending header\n");
+        SSL_write(ssl,"-1",strlen("-1"));
         exit(EXIT_FAILURE);
+    }
+    else{
+        SSL_write(ssl,"100",strlen("100"));
+    }
+    char *hr = NULL;
+    hr = malloc(3);
+    SSL_read(ssl, hr, sizeof(hr));
+    if(strcmp("100",hr)){
+        printf("Header sending and unpacking failed\n");
+        exit(EXIT_FAILURE);
+    }
+    else{
+        printf("Header sent and unpacked successfully\n");
     }
     //free(head_buff);
 }   
@@ -574,7 +588,7 @@ int verifySig(char *signatoryCertName, const char *clearText){
         exit(EXIT_FAILURE);
     }
     evpKey = X509_get_pubkey(xcert);
-
+    fclose(fp);
 
     /*create evp_ctx */
     EVP_MD_CTX *evp_ctx;
@@ -679,7 +693,7 @@ int hashFile(unsigned char* c, const char *fileName){
 
     if (fp == NULL) {
         printf ("%s can't be opened.\n", filename);
-        exit(EXIT_FAILURE);
+        return -1;
     }
 
     SHA1_Init (&shaContext);
@@ -783,10 +797,10 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         // open current cert (from list) as issuer
         X509 *curCert = PEM_read_X509(curCertFP, NULL, NULL, NULL);
 
-	if (!curCert) {
-		fprintf(stderr, "Couldn't read certificat: %s\n", curCertName);
-		exit(EXIT_FAILURE);
-	}
+    	if (!curCert) {
+    		fprintf(stderr, "Couldn't read certificat: %s\n", curCertName);
+    		exit(EXIT_FAILURE);
+    	}
 
         if(strcmp(certificateName, curCertName) != 0
             && X509_check_issued(curCert, startCert) == X509_V_OK) {
@@ -806,8 +820,8 @@ int checkSigFileName(char *fileName, char *sigFileName) {
         fclose(curCertFP);
         X509_free(curCert);
     }
+    closedir(dfd);
     X509_free(startCert);
-    fclose(startCertFp);
     if (*numIssuers > 0) return 1;
     return -1; // didn't find an issuer
  }
@@ -866,6 +880,7 @@ int getNumCertsInDir(char *dir) {
         
           if (isNameCertFile(dp->d_name)) count++;
     }
+    closedir(dfd);
     return count;
 }
 
@@ -934,6 +949,7 @@ int getProtectionRating(char *fileName) {
             maxRingOfTrust = maxRingOfTrust <= certsROT ? certsROT : maxRingOfTrust;
         }
     }
+    closedir(dfd);
     return maxRingOfTrust;
 }
 
@@ -984,6 +1000,7 @@ int ringOfTrust(char *startCertificate) {
         fprintf( stderr, "Couldn't open certificate: %s. %s\n",checkCert, strerror(errno) );
         return 1;
     }
+    fclose(fp);
     //loop through the directory
     struct dirent *dp;
     DIR *dfd;

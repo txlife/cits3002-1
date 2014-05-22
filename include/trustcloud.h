@@ -43,6 +43,7 @@
 #define UPLOAD_CERT 5
 #define FIND_ISSUER 6
 #define TEST_RINGOFTRUST 7
+#define SUCCESSFUL 100
 
 #define PORT 3490
 #define MAXSIZE 1024
