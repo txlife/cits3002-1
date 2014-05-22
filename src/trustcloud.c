@@ -141,7 +141,8 @@ void send_header(SSL *ssl, header h) {
 		&& h.action != UPLOAD_CERT
         && h.action != FIND_ISSUER 
         && h.action != TEST_RINGOFTRUST
-        && h.action != FAIL_ERROR) {
+        && h.action != FAIL_ERROR
+        && h.action != SUCCESS) {
         fprintf(stderr, "Incorrect header action for sending header\n");
         exit(EXIT_FAILURE);
     }
@@ -158,17 +159,53 @@ void send_header(SSL *ssl, header h) {
     sprintf(head_buff,"%d\n%d\n%s\n%s\n%i\n",(short)h.action,(int)h.file_size,file_name,h.certificate,h.circ);
     head_buff[HEADER_SIZE]= (char)'\0';
 
-    printf("Sending header buff:\n %s\n", head_buff);
+    if (h.action != FAIL_ERROR && h.action != SUCCESS)
+        printf("Sending header...\n");
     int len = HEADER_SIZE;
     sendall(ssl, (unsigned char *)head_buff, &len);
     if (len < HEADER_SIZE) {
         fprintf(stderr, "Error sending header\n");
         exit(EXIT_FAILURE);
     }
-    //free(head_buff);
+
+    if (h.action != FAIL_ERROR && h.action != SUCCESS) {
+        // receive confirmation message
+        printf("Waiting for confirmation header...\n");
+        header h_recv;
+        char *h_recv_buf, *h_recv_bufbuf;
+        h_recv_buf = malloc(MAXSIZE);
+        h_recv_bufbuf = h_recv_buf;
+        
+        if (!h_recv_buf) {
+            fprintf(stderr, "Couldn't allocate memory for h_recv_buf\n");
+            exit(EXIT_FAILURE);
+        }
+        int len_h_recv_buf = 0;
+        // recv_all(ssl, (unsigned char*)h_recv_buf, &len_h_recv_buf);
+
+        while (len_h_recv_buf < HEADER_SIZE) {
+            int read = SSL_read(ssl, h_recv_bufbuf, HEADER_SIZE - len_h_recv_buf);
+            len_h_recv_buf += read;
+            h_recv_bufbuf += read;
+        }
+
+        if (len_h_recv_buf == 0) {
+            printf("Didn't receive confirmation header..\n");
+            exit(EXIT_FAILURE);
+        }
+
+        unpack_header_string(ssl, h_recv_buf, &h_recv);
+
+        if (h.action == FAIL_ERROR || h.action == VERIFY_FILE) {
+            printf("Received fail in confirmation,");
+            printf(" requested action is not implemented\n");
+            exit(EXIT_FAILURE);
+        }
+        printf("Server confirmed requested action is implemented. Proceeding...\n");
+    }
 }   
 
-int unpack_header_string(char *head_string, header *h) {
+int unpack_header_string(SSL *ssl, char *head_string, header *h) {
     int i;
 
     char *loc = head_string;
@@ -203,7 +240,36 @@ int unpack_header_string(char *head_string, header *h) {
                 break;
         }
     }
+
+    if (h->action != SUCCESS && h->action != FAIL_ERROR) {
+        // our server implements all requirements, so respond with 
+        // success header to confirm requested action is implemented
+        sendConfirmation(ssl, SUCCESS);
+    }   
+
     return 0;
+}
+
+/**
+ * Send almost empty header, except for action flag, to acknowledge
+ * implementation of requested action.
+ *
+ * Flag should be either SUCCESS or FAIL_ERROR
+ */
+void sendConfirmation(SSL *ssl, int flag) {
+    header h;
+
+    printf("Sending confirmation header...\n");
+    if (flag != SUCCESS && flag != FAIL_ERROR) {
+        fprintf(stderr, "sendConfrimation flag is invalid. Use FAIL_ERROR or SUCCESS\n");
+        exit(EXIT_FAILURE);
+    }
+    h.action = flag;
+    h.file_size = 0;
+    h.file_name = " ";
+    h.certificate = " ";
+    h.circ = 0;
+    send_header(ssl, h);
 }
 
 /**

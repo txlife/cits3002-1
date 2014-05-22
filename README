@@ -50,3 +50,16 @@ Client usage:
 
 		./client -h 127.0.0.1:3490 -v bom.html A	(again only use unique id of certificate)
 
+====================================================================
+CHANGE LOG
+====================================================================
+
+[22 May 2014] Adapted trustcloud.c to match protocol defined in 
+							communicationProtocol.txt
+
+							+ All changes occur in send_header and unpack header. 
+							+ unpack_header now sends confirmation message (if it is not
+								unpacking a confirmation message already)
+							+ send_header waits for confirmation message before proceeding
+							+ This way we have the ability to communicate with server/client
+							  that does not match in implementation. 

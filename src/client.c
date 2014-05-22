@@ -233,7 +233,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "[CLIENT] Did not receive full header\n");
             exit(EXIT_FAILURE);
         }     
-        if (unpack_header_string(head_buf, &h_recv) == -1) {
+        if (unpack_header_string(ssl, head_buf, &h_recv) == -1) {
             fprintf(stderr, "[CLIENT] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }

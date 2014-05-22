@@ -35,6 +35,7 @@
 
 /** Operation Header Action Descriptor Flag Definitions **/
 #define FAIL_ERROR -1
+#define SUCCESS 100
 #define ADD_FILE 0
 #define FETCH_FILE 1
 #define	LIST_FILE 2
@@ -132,7 +133,7 @@ void send_header	(SSL *,header);
 int get_file_size	(FILE *);
 
 /** unpack header **/
-int unpack_header_string	(char *, header *);
+int unpack_header_string	(SSL *, char *, header *);
 /** show certificate **/
 void ShowCerts	(SSL *);
 /** command line options **/
@@ -156,5 +157,13 @@ int isNameSigFile(const char *);
 int isSignedBy(X509 *, X509 *);
 int getCertName(char *, char*);
 int getProtectionRating(char *);
+
+/**
+ * Send almost empty header, except for action flag, to acknowledge
+ * implementation of requested action.
+ *
+ * Flag should be either SUCCESS or FAIL_ERROR
+ */
+void sendConfirmation(SSL *, int);
 
 #endif

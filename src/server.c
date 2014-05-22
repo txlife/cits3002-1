@@ -115,7 +115,7 @@ int main()
         }
         /* unpack header string */
         header h;
-        if (unpack_header_string(header_buf, &h) == -1) {
+        if (unpack_header_string(ssl, header_buf, &h) == -1) {
             fprintf(stderr, "[SERVER] Could not unpack header information from client\n");
             exit(EXIT_FAILURE);
         }
